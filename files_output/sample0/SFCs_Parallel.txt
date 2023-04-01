@@ -1,0 +1,7 @@
+
+Parallelised SFC:[SFC One],nVNF[4]::	(SRC -> [ f1a; ] ->[ f6a; f4a; ] ->[ f5a; ] -> DST)
+Parallelised SFC:[SFC Two],nVNF[7]::	(SRC -> [ f10a; ] ->[ f4a; f8a; f3a; ] ->[ f2a; f1a; ] ->[ f5a; ] -> DST)
+Parallelised SFC:[SFC Three],nVNF[5]::	(SRC -> [ f4a; f8a; ] ->[ f7a; f10a; f9a; ] -> DST)
+Parallelised SFC:[SFC One],nVNF[4]::	(SRC -> [ f1a; ] -> [ f6a; f4a; ] -> [ f5a; ] ->  DST)
+Parallelised SFC:[SFC Two],nVNF[7]::	(SRC -> [ f10a; ] -> [ f4a; f8a; f3a; ] -> [ f2a; f1a; ] -> [ f5a; ] ->  DST)
+Parallelised SFC:[SFC Three],nVNF[5]::	(SRC -> [ f4a; f8a; ] -> [ f7a; f10a; f9a; ] ->  DST)

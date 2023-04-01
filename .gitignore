@@ -1,0 +1,3 @@
+cmake-build-*/*
+files_output/**/graphs/
+.idea/
