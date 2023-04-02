@@ -16,6 +16,8 @@
 //#include <chrono>       //to seed random number
 //#include <sstream>
 #include <random>
+#include <functional>
+
 using namespace std;
 
 /**************** Variable Declaration ****************/
@@ -41,6 +43,7 @@ const string filename_vnf_parallelpairs = "VNFs_ParallelPairs.txt";
 #define SFCdst (-10)
 #define SFCseq (-11)
 #define SFCpar (-12)
+#define maxSFClen 10
 
 /*!
  * @param factor_packet factor to multiply to convert packet size in bits. 1 Byte is 8 bits
@@ -70,56 +73,63 @@ void debugPrint(const string& msg){
 #include "ServiceFunctionChain.h" // structure SFC
 #include "FileReadingFunctions.h"
 
-template<class T>
-typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
-almost_equal(T x, T y, int ulp)
-{
-    // the machine epsilon has to be scaled to the magnitude of the values used and multiplied by the desired precision in ULPs (units in the last place)
-    return std::fabs(x - y) <= std::numeric_limits<T>::epsilon() * std::fabs(x + y) * ulp
-           // unless the result is subnormal
-           || std::fabs(x - y) < std::numeric_limits<T>::min();
-}
+//template<class T>
+//typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
+//almost_equal(T x, T y, int ulp)
+//{
+//    // the machine epsilon has to be scaled to the magnitude of the values used and multiplied by the desired precision in ULPs (units in the last place)
+//    return std::fabs(x - y) <= std::numeric_limits<T>::epsilon() * std::fabs(x + y) * ulp
+//           // unless the result is subnormal
+//           || std::fabs(x - y) < std::numeric_limits<T>::min();
+//}
 
 #include "TimeCalculationFunctions.h"
 #include "AssignmentFunctions.h"
 #include "Algorithms.h"
 
-void someFunc() {
-    int K = 7;
-    vector<vector<vector<int>>> S(K+1);
-    S[0] = {{}};
-    for(int k = 1; k<=K; k++){
-        vector<vector<int>> ans;
-        for(int i=1; i<=k; i++){
-            vector<vector<int>> s_dash =  S[k-i];
 
-            for(auto s_: s_dash){
-                s_.push_back(i);
-                ans.push_back(s_);
-            }
-        }
-        S[k] = ans;
-    }
-    for(int k = 1; k<=K; k++){
-        cout<<"\n"<<k<<" ("<<S[k].size()<<") :";
-        for(const auto& x: S[k])
-        {
-            cout<<"[";
-            for(auto y: x)
-                cout<<y<<" ";
-            cout<<"] ";
-        }
-    }
-}
+
+//void dfs_dfs(int levelIdx, unordered_map<int,bool> visited, vector<vector<int>>blks, unordered_map<int,vector<vector<int>>>& levelNodes, vector<vector<vector<int>>>& allPCs){
+//    if(levelIdx == levelNodes.size()) {
+//        allPCs.push_back(blks);
+//        return;
+//    };
+//    for(const auto& allComb: levelNodes[levelIdx]){
+//        bool canBeVisited = true;
+//        for(auto node: allComb){
+//            if(visited[node]){
+//                canBeVisited=false;
+//                break;
+//            }
+//        }
+//        if(canBeVisited){
+//            for(auto node: allComb)visited[node]=true;
+//            blks.push_back(allComb);
+//            dfs_dfs(levelIdx+1, visited,blks, levelNodes, allPCs);
+//            for(auto node: allComb)visited[node]=false;
+//            blks.pop_back();
+//        }
+//    }
+//
+//}
+
+
+
+
 
 int main()
 {
 // TODO: partial parallel chain?
 // TODO: parallel graph data collection
-
 // TODO: Finding number of VNF instances, VNF Deployement
-// TODO:
 // TODO: existing heuritics compare with bruteforce
+
+//    auto ft_start = std::chrono::steady_clock::now();
+//    clusterSizeEnumeration(int(clusterSz.size()),maparVNFs_Cluster_AssignemtnxSFClen);
+//    all_nCk(int(nCk.size()), maxSFClen);
+//    vector<vector<int>> parSFC_Full = {{1}, {2,3,4,5}};
+//    parVNFs_Cluster_Assignment(5, parSFC_Full, false);
+//    if(debug)cout<<"\nTime:"<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
 
 
     using type_wgt_local = float; ///< Determine Edge Weights Data TYPE (unsigned int or FLOAT)
@@ -148,8 +158,14 @@ int main()
     vector<ServiceFunctionChain*> SFC;
     try{  readGenericServiceFunctionsChains(testDirName, SFC);
     } catch( std::exception const& e ) { std::cerr << "caught: " << e.what() << std::endl; }
-    for(int ni=1; ni<=total_SFC; ni++) convertSeqSFC_to_FullParallelSFC<type_res_local>(testDirName, SFC[ni], VNFNetwork);
-    if(debug)cout<<"\n\t[Parallel Conversion Done]. Parallel SFC File:"<<output_directory+testDirName+filename_sfc_parallel;
+
+    for(int ni=1; ni<=total_SFC; ni++) convertSeqSFC_to_FullParallelSFC<type_res_local>(SFC[ni], VNFNetwork);
+    if(debug)cout<<"\n\t[SFC converted to Full Parallelised Chain]. Parallel SFC File:"<<output_directory+testDirName+filename_sfc_parallel;
+//    for(int ni=1; ni<=total_SFC; ni++) SFC[ni]->showSFC_BlockWise(SFCpar);
+    auto ft_start = std::chrono::steady_clock::now();
+    parVNFs_Cluster_Assignment(SFC[3], true);
+    if(debug)cout<<"\nTime:"<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
+
 //    SFC[1]->convertToParallelSFC({{SFCsrc},{1},{6,4},{5},{SFCdst}});
 //    SFC[2]->convertToParallelSFC({{SFCsrc},{10},{4,8,3},{2,1},{5},{SFCdst}});
 //    SFC[3]->convertToParallelSFC({{SFCsrc},{4,8},{7,10,9},{SFCdst}});

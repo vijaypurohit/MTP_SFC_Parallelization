@@ -170,7 +170,7 @@ void ServiceFunctionChain::showSFC_BlockWise(const int type) {
         }
     }
     else if(type == SFCpar){
-        cout << "\nParallelised SFC:["<<name<<"],nVNF["<< numVNF<<"]::\t";
+        cout << "\nParallel SFC:["<<name<<"],nVNF["<< numVNF<<"]::\t";
         for(size_t i=0; i<vnfBlocksPar.size(); i++){
             if(i==0 and vnfBlocksPar[i][0] == SFCsrc) cout << "(SRC -> ";
             else if(i==vnfBlocksPar.size()-1 and vnfBlocksPar[i][0] == SFCdst)  cout << " DST)";
