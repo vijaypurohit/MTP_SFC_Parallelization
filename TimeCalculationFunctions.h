@@ -49,12 +49,13 @@ float calcTime_PropagationDelay(unsigned int n1, unsigned int n2, const Physical
  * Both in packets per second. \n
  * @param curVNFid VNF Node Id whose arrival rate we have to calculate
  * @param mu_f service rate of current VNF.
+ * @param X_VNFType2Instv In curSFC VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
  * @param curSFC SFC class whose VNF we are considering
  * @param allSFC all the SFC in the network
  * @return queueing delay in seconds.
  * Sabse phele ham sab SFC me dekhenge ki ye curVNF present hai kya, and curVNF ka jo instance use kr rhe wohi hai to add kr denge us SFC ka arrival rate
  */
-float calcTime_QueuingDelay(const int& curVNFid, const float &mu_f, ServiceFunctionChain* curSFC, const vector<ServiceFunctionChain*>& allSFC){
+float calcTime_QueuingDelay(const int& curVNFid, const float &mu_f,unordered_map<unsigned int, int>& X_VNFType2Inst, unsigned int curSFCindex, const vector<ServiceFunctionChain*>& allSFC){
     float lambda = 0;
     for(unsigned int c=1; c<=total_SFC; c++){ //0th SFC is un-assigned, don't use allSFC.size()
      ServiceFunctionChain *sfc;
@@ -62,17 +63,16 @@ float calcTime_QueuingDelay(const int& curVNFid, const float &mu_f, ServiceFunct
             string errorMsg = "Error in accessing SFC. Function: ";
             throw runtime_error(errorMsg + __FUNCTION__);
         }
-        /// is curVNF of curSFC present in this SFC? and that VNF instance is same as curVNF instance?
-        if( (sfc->isVNF_Present.count(curVNFid) != 0 and sfc->isVNF_Present[curVNFid]==true)
-            and (sfc->I_VNFType2Inst[curVNFid] == curSFC->I_VNFType2Inst[curVNFid])  )
+        if(sfc->index == curSFCindex)
+            lambda += sfc->trafficArrivalRate;
+        else if( (sfc->isVNF_Present.count(curVNFid) != 0 and sfc->isVNF_Present[curVNFid]==true)
+            and (sfc->I_VNFType2Inst[curVNFid] == X_VNFType2Inst[curVNFid])  ) /// is curVNF of curSFC present in this SFC? and that VNF instance is same as curVNF instance?
         {
-                lambda += sfc->trafficArrivalRate;
-//            cout<<"lambda += SFC["<<sfc->index<<"]";
-//            if(  sfc->I_VNFType2Inst.find(curVNFid) != sfc->I_VNFType2Inst.end()  ){ }
+                lambda += sfc->trafficArrivalRate; //            cout<<"lambda += SFC["<<sfc->index<<"]";
         }
     }
     if(lambda >= mu_f){
-        string errorMsg = "SFC["+ to_string(curSFC->index)+"]->VNF["+ to_string(curVNFid)+"]. Arrival rate ["+ to_string(lambda)+"] >= processing rate of VNF["+ to_string(mu_f)+"]. Function: ";
+        string errorMsg = "SFC["+ to_string(curSFCindex)+"]->VNF["+ to_string(curVNFid)+"]. Arrival rate ["+ to_string(lambda)+"] >= processing rate of VNF["+ to_string(mu_f)+"]. Function: ";
         throw runtime_error(errorMsg + __FUNCTION__);
     }
     return (lambda / (mu_f * (mu_f - lambda)));
@@ -151,6 +151,7 @@ float calcTime_IntraMergingTime(unsigned int cntParallelServer){
  * SRC -> next level. requires only inter duplication AND secLastLevel --> LastLevel requires only inter merging time \n
  * at each level requires -> inter merging, intra duplication, intra merging, inter duplication
  * @param givenParSFC given enumeration of vnfBlockPar for which we have to calcualte the delay (except src dst block)
+ * @param X_VNFType2Instv In curSFC VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
  * @param cSFC given SFC object whose delay we have to colculate
  * @param VNFNetwork VirtualNetworkFunctions object to find the required VM of the given vnf id and instance id
  * @param VirtualNetwork  VirtualMachines object to find the required Physical Node of the given VM id
@@ -159,7 +160,7 @@ float calcTime_IntraMergingTime(unsigned int cntParallelServer){
  * @return packet delay of SFC in seconds.
  */
 template<typename type_res=unsigned int>
-float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, ServiceFunctionChain *cSFC, VirtualNetworkFunctions<type_res> *VNFNetwork, const VirtualMachines<type_res> *VirtualNetwork, bool showInConsole=false){
+float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, unordered_map<unsigned int, int>& X_VNFType2Inst, ServiceFunctionChain *cSFC, VirtualNetworkFunctions<type_res> *VNFNetwork, const VirtualMachines<type_res> *VirtualNetwork, bool showInConsole=false){
 //    givenParSFC = { {3, 3, 4}, {3,4,4,5,5,6}, {3,3,4,7,6} };
     if(debug) cout<<"\n>>>[Function Running: "<<__FUNCTION__<<"]";
     unsigned int szStages = givenParSFC.size();
@@ -177,7 +178,7 @@ float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, Ser
 
     /// SFC src --> STG[1] This for-loop is Only For Source Level to Next Level(index 0 of parallel block), only duplication required.
     for (const int &vnf_dst_idx: givenParSFC[stg_nxt-1]){  //int vnf_dst_inst_idx =0, vm_dst_idx=0,pn_dst_idx =vnf_dst_idx;
-              int vnf_dst_inst_idx = cSFC->I_VNFType2Inst[vnf_dst_idx]; int vm_dst_idx = VNFNetwork->I_VNFinst2VM[vnf_dst_idx][vnf_dst_inst_idx];int pn_dst_idx = VirtualNetwork->I_VM2PN[vm_dst_idx];
+              int vnf_dst_inst_idx = X_VNFType2Inst[vnf_dst_idx]; int vm_dst_idx = VNFNetwork->I_VNFinst2VM[vnf_dst_idx][vnf_dst_inst_idx];int pn_dst_idx = VirtualNetwork->I_VM2PN[vm_dst_idx];
         stgPN[stg_nxt][pn_dst_idx] += 1;
     }
     /// float T_d_pkt = Time to duplicate packets to d diff server from level_i to level_i+1, Here only duplication time required.
@@ -198,7 +199,7 @@ float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, Ser
     // processing the next level stgi+1, except last level
         if(stg_nxt != szStages+1){
         for (const auto &vnf_dst_idx: givenParSFC[stg_nxt-1]) { //int vnf_dst_inst_idx =0,vm_dst_idx=0,pn_dst_idx =vnf_dst_idx;
-                int vnf_dst_inst_idx = cSFC->I_VNFType2Inst[vnf_dst_idx];
+                int vnf_dst_inst_idx = X_VNFType2Inst[vnf_dst_idx];
                 int vm_dst_idx = VNFNetwork->I_VNFinst2VM[vnf_dst_idx][vnf_dst_inst_idx];
                 int pn_dst_idx = VirtualNetwork->I_VM2PN[vm_dst_idx];
             stgPN[stg_nxt][pn_dst_idx] += 1;
@@ -241,13 +242,14 @@ float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, Ser
     }
     if(debug)cout<<"\n<<<[Function Completed: "<<__FUNCTION__<<"]";
     return totalPktDelay;
-}
+}//calcTime_PacketsDelay
 
 
 /*! Calculate the end-to-end delay of given PARALLEL SFC with VNF instances assigned. \n
  * End-to-End delay includes - transmission time, propagation time, execution time, queuing delay, processing time.
  * Don't include same vnf again in same SFC.
  * @param givenParSFC given enumeration of vnfBlockPar for which we have to calcualte the delay (except src dst block)
+ * @param X_VNFType2Instv In curSFC VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
  * @param cSFC given SFC object from which we get the mapping and given SFC detail
  * @param allSFC all the SFC in the network, required to calculate arrival rate for queuing delay.
  * @param VNFNetwork VirtualNetworkFunctions object to find the required VM of the given vnf id and instance id
@@ -259,7 +261,7 @@ float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, Ser
  * @return time (in seconds) End to end delay of SFC.
  */
 template<typename type_wgt=unsigned int, typename type_res=unsigned int>
-float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, ServiceFunctionChain *cSFC, const vector<ServiceFunctionChain*>& allSFC, VirtualNetworkFunctions<type_res> *VNFNetwork, const VirtualMachines<type_res> *VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork, bool showInConsole=false)
+float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, unordered_map<unsigned int, int>& X_VNFType2Inst, ServiceFunctionChain *cSFC, const vector<ServiceFunctionChain*>& allSFC, VirtualNetworkFunctions<type_res> *VNFNetwork, const VirtualMachines<type_res> *VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork, bool showInConsole=false)
 {
     if(debug)cout<<"\n>>[Function Running: "<<__FUNCTION__<<"]";
 
@@ -289,15 +291,12 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, Ser
         VNFNode<type_res> *dstVNFNode = VNFNetwork->VNFNode[vnf_dst_idx];
         T_prc = calcTime_MeanProcessingDelayVNF<type_res>(dstVNFNode);
         T_exe = calcTime_FunctionExecutionDelay<type_res>(dstVNFNode);
-        try { T_qd = calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, cSFC ,allSFC);
+        try { T_qd = calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,cSFC->index,allSFC);
         } catch (std::exception const &e) { std::cerr << "caught: " << e.what() << std::endl; }
 //          T_prc=0.5; T_exe = 1; T_qd=2;
         /// T_tx using same value as at the time of declaration.  from source to all child, add processing time of packet duplication.
         distance[vnf_dst_idx] = distance[SFCsrc] + T_tx_init + T_prc + T_exe + T_qd;
     }
-
-    /// float T_d_pkt = Time to duplicate packets to d diff server from level_i to level_i+1, Here only duplication time required.
-//    totalPktDelay = pktdist[stg_nxt-1][SFCsrc] = calcTime_InterDuplicationTime(stgPN[stg_nxt].size());
 
     /*!  Stage Wise execution to maintain topological order
      *  for each vnfsrc in cur stage we will process next stage vnfs except last stage (szStages-1).
@@ -305,7 +304,7 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, Ser
     for( stg_nxt=1; stg_nxt<=szStages; stg_nxt++){
 
         for(const auto &vnf_src_idx: givenParSFC[stg_nxt-1]) { //for each vnf in src stage
-            int vnf_src_inst_idx = cSFC->I_VNFType2Inst[vnf_src_idx]; int vm_src_idx = VNFNetwork->I_VNFinst2VM[vnf_src_idx][vnf_src_inst_idx];            int pn_src_idx = VirtualNetwork->I_VM2PN[vm_src_idx];
+            int vnf_src_inst_idx = X_VNFType2Inst[vnf_src_idx]; int vm_src_idx = VNFNetwork->I_VNFinst2VM[vnf_src_idx][vnf_src_inst_idx];            int pn_src_idx = VirtualNetwork->I_VM2PN[vm_src_idx];
             if (showInConsole) {
                 cout << "\n:src: F[" << vnf_src_idx << char(96 + vnf_src_inst_idx) << "],VM[" << vm_src_idx << "],PN["<< pn_src_idx << "]" << "  ";
             }
@@ -316,7 +315,7 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, Ser
            }  else if (distance[vnf_src_idx] != default_min_distance) { // else process intermediate nodes
 
                 for (const int &vnf_dst_idx: givenParSFC[stg_nxt]) {  //stg_nxt + 1 - 1, stg_nxt next stage, -1 is the id
-                        int vnf_dst_inst_idx = cSFC->I_VNFType2Inst[vnf_dst_idx];int vm_dst_idx = VNFNetwork->I_VNFinst2VM[vnf_dst_idx][vnf_dst_inst_idx];int pn_dst_idx = VirtualNetwork->I_VM2PN[vm_dst_idx];
+                        int vnf_dst_inst_idx = X_VNFType2Inst[vnf_dst_idx];int vm_dst_idx = VNFNetwork->I_VNFinst2VM[vnf_dst_idx][vnf_dst_inst_idx];int pn_dst_idx = VirtualNetwork->I_VM2PN[vm_dst_idx];
                         VNFNode<type_res> *dstVNFNode = VNFNetwork->VNFNode[vnf_dst_idx];
 
                         if (pn_src_idx == pn_dst_idx) {  T_tx = 0; T_px = 0;
@@ -324,7 +323,7 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, Ser
                         }
                         T_prc = calcTime_MeanProcessingDelayVNF<type_res>(dstVNFNode);
                         T_exe = calcTime_FunctionExecutionDelay<type_res>(dstVNFNode);
-                        try {  T_qd = calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, cSFC, allSFC);
+                        try {  T_qd = calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,cSFC->index, allSFC);
                         } catch (std::exception const &e) { std::cerr << "caught: " << e.what() << std::endl; }
 //                    T_tx = 1; T_px = 1; T_qd = 1; T_prc = 1; T_exe = 1; T_prc=0.5; T_exe = 1; T_qd=2;
                         if (showInConsole) {
@@ -348,14 +347,14 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, Ser
 //        throw errorMsg;
 //    }
     if(debug)cout<<"\n<<[Function Completed: "<<__FUNCTION__<<"]";
-//    "("<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
     return distance[SFCdst];
-}
+}//calcObjectiveValuePar
 
 /*! Calculate the end-to-end delay of given SEQUENTIAL SFC (SFC->vnfSeq) with VNF instances assigned. \n
  * End-to-End delay includes - transmission time, propagation time, execution time, queuing delay, processing time.
  * Don't include same vnf again in same SFC.
  * @param cSFC given SFC object whose delay we have to colculate
+ * @param X_VNFType2Instv In curSFC VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
  * @param allSFC all the SFC in the network, required to calculate arrival rate for queuing delay.
  * @param VNFNetwork VirtualNetworkFunctions object to find the required VM of the given vnf id and instance id
  * @param VirtualNetwork VirtualMachines object to find the required Physical Node of the given VM id
@@ -366,9 +365,10 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, Ser
  * @return time (in seconds) End to end delay of SFC.
  */
 template<typename type_wgt=unsigned int, typename type_res=unsigned int>
-float calcObjectiveValueSeq( ServiceFunctionChain *cSFC, const vector<ServiceFunctionChain*>& allSFC, VirtualNetworkFunctions<type_res> *VNFNetwork, const VirtualMachines<type_res> *VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork, bool showInConsole=false){
+float calcObjectiveValueSeq(ServiceFunctionChain *cSFC, unordered_map<unsigned int, int>& X_VNFType2Inst, const vector<ServiceFunctionChain*>& allSFC, VirtualNetworkFunctions<type_res> *VNFNetwork, const VirtualMachines<type_res> *VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork, bool showInConsole=false){
+
     if(debug)cout<<"\n>[Function Running: "<<__FUNCTION__<<"]";
-//    if(showInConsole) { cout<<"\nTopological Order: ";for (int x: cSFC->vnfSeq) { if(x == SFCsrc) cout<<"SRC -> "; else if(x == SFCdst) cout<<" DST"; else cout << x <<char(96+cSFC->I_VNFType2Inst[x])<< " --> "; } }  ///< Print topological order
+//    if(showInConsole) { cout<<"\nTopological Order: ";for (int x: cSFC->vnfSeq) { if(x == SFCsrc) cout<<"SRC -> "; else if(x == SFCdst) cout<<" DST"; else cout << x <<char(96+X_VNFType2Inst[x])<< " --> "; } }  ///< Print topological order
 
     unsigned int sz = cSFC->vnfSeq.size(); // src + dest = (2)
 
@@ -392,7 +392,7 @@ float calcObjectiveValueSeq( ServiceFunctionChain *cSFC, const vector<ServiceFun
         T_prc = calcTime_MeanProcessingDelayVNF<type_res>(srcVNFNode);
         T_exe = calcTime_FunctionExecutionDelay<type_res>(srcVNFNode);
         try {
-            T_qd = calcTime_QueuingDelay(vnf_dst_idx, srcVNFNode->serviceRate, cSFC, allSFC);
+            T_qd = calcTime_QueuingDelay(vnf_dst_idx, srcVNFNode->serviceRate, X_VNFType2Inst,cSFC->index, allSFC);
         } catch (std::exception const &e) { std::cerr << "caught: " << e.what() << std::endl; }
 //        T_prc=0.5; T_exe = 1;  T_qd=2;
         /// T_tx using same value as at the time of declaration.  from source to all child, add processing time of packet duplication.
@@ -402,7 +402,7 @@ float calcObjectiveValueSeq( ServiceFunctionChain *cSFC, const vector<ServiceFun
     /// from 1 as SFCsrc(0) already considered and first parallel block index=1, TO as sz-2 as src -> sz-1 is destination SFCdst
     for(unsigned int idx = 1; idx <= sz-2; idx++) {
         const int& vnf_src_idx = cSFC->vnfSeq[idx]; // int qki -10 bhi hai -10 as dst
-        int vnf_src_inst_idx = cSFC->I_VNFType2Inst[vnf_src_idx]; int vm_src_idx = VNFNetwork->I_VNFinst2VM[vnf_src_idx][vnf_src_inst_idx]; int pn_src_idx = VirtualNetwork->I_VM2PN[vm_src_idx];
+        int vnf_src_inst_idx = X_VNFType2Inst[vnf_src_idx]; int vm_src_idx = VNFNetwork->I_VNFinst2VM[vnf_src_idx][vnf_src_inst_idx]; int pn_src_idx = VirtualNetwork->I_VM2PN[vm_src_idx];
 
             if(showInConsole) { cout<<"\n:src: F["<<vnf_src_idx<<char(96+vnf_src_inst_idx)<<"],VM["<<vm_src_idx<<"],PN["<<pn_src_idx<<"]"<<" :dst:";}
             if(distance[vnf_src_idx] != default_min_distance)
@@ -411,14 +411,14 @@ float calcObjectiveValueSeq( ServiceFunctionChain *cSFC, const vector<ServiceFun
                 if(vnf_dst_idx == SFCdst){ //    T_prc=0.5; //T_tx using same value as at the time of declaration.
                         distance[vnf_dst_idx] = distance[vnf_src_idx] + T_tx_init ;
                 }else{ //vnfIDdst != SFCdst
-                    int vnf_dst_inst_idx = cSFC->I_VNFType2Inst[vnf_dst_idx]; int vm_dst_idx = VNFNetwork->I_VNFinst2VM[vnf_dst_idx][vnf_dst_inst_idx]; int pn_dst_idx = VirtualNetwork->I_VM2PN[vm_dst_idx];
+                    int vnf_dst_inst_idx = X_VNFType2Inst[vnf_dst_idx]; int vm_dst_idx = VNFNetwork->I_VNFinst2VM[vnf_dst_idx][vnf_dst_inst_idx]; int pn_dst_idx = VirtualNetwork->I_VM2PN[vm_dst_idx];
                     VNFNode<type_res> *dstVNFNode = VNFNetwork->VNFNode[vnf_dst_idx];
                     if(pn_src_idx == pn_dst_idx){ T_tx=0; T_px=0;
                     }else{ T_tx = T_tx_init; T_px = calcTime_PropagationDelay<type_wgt, type_res>(pn_src_idx, pn_dst_idx, PhysicalNetwork);
                     }
                     T_prc = calcTime_MeanProcessingDelayVNF<type_res>(dstVNFNode);
                     T_exe = calcTime_FunctionExecutionDelay<type_res>(dstVNFNode);
-                    try{ T_qd=calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, cSFC ,allSFC);
+                    try{ T_qd=calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,cSFC->index ,allSFC);
                     } catch( std::exception const& e ) { std::cerr << "caught: " << e.what() << std::endl; }
 //                    T_tx = 1; T_px = 1;  T_prc = 1; T_exe = 1;  T_qd = 1;
                     if(showInConsole) {  cout<<" F["<<vnf_dst_idx<<char(96+vnf_dst_inst_idx)<<"],VM["<<vm_dst_idx<<"],PN["<<pn_dst_idx<<"]"<<"\t" <<"T_tx["<<T_tx<<"] | T_px["<<T_px<<"] | T_qd["<<T_qd<<"] | T_prc["<<T_prc<<"] | T_exe["<<T_exe<<"]";}
@@ -438,7 +438,7 @@ float calcObjectiveValueSeq( ServiceFunctionChain *cSFC, const vector<ServiceFun
 
     if(debug)cout<<"\n<[Function Completed: "<<__FUNCTION__<<"]";
     return distance[SFCdst];
-}
+}//calcObjectiveValueSeq
 
 
 #endif //SFC_PARALLELIZATION_TIMECALCULATIONFUNCTIONS_H
@@ -598,7 +598,7 @@ float calcObjectiveValueSeq( ServiceFunctionChain *cSFC, const vector<ServiceFun
 //            topologicalOrder.push_back(node);
 //        }
 //    }
-//    if(showInConsole) { cout<<"\nTopological Order: ";for (int x: topologicalOrder) { if(x == SFCsrc) cout<<"SRC -> "; else if(x == SFCdst) cout<<" DST"; else cout << x <<char(96+cSFC->I_VNFType2Inst[x])<< " --> "; }  }  ///< Print topological order
+//    if(showInConsole) { cout<<"\nTopological Order: ";for (int x: topologicalOrder) { if(x == SFCsrc) cout<<"SRC -> "; else if(x == SFCdst) cout<<" DST"; else cout << x <<char(96+X_VNFType2Inst[x])<< " --> "; }  }  ///< Print topological order
 //
 //    float default_min_distance = -1; ///< default min distance to be used in distance(time) calculation.
 //    unordered_map<unsigned int, float> distance; ///<stores longest distance to each node
@@ -638,7 +638,7 @@ float calcObjectiveValueSeq( ServiceFunctionChain *cSFC, const vector<ServiceFun
 ////            //above for loop
 ////        }
 ////        else{ //(vnf_src_idx != SFCsrc)
-//        int vnf_src_inst_idx = cSFC->I_VNFType2Inst[vnf_src_idx];
+//        int vnf_src_inst_idx = X_VNFType2Inst[vnf_src_idx];
 //        int vm_src_idx = VNFNetwork->I_VNFinst2VM[vnf_src_idx][vnf_src_inst_idx];
 //        int pn_src_idx = VirtualNetwork->I_VM2PN[vm_src_idx];
 //        if(showInConsole) { cout<<"\n:src: F["<<vnf_src_idx<<char(96+vnf_src_inst_idx)<<"],VM["<<vm_src_idx<<"],PN["<<pn_src_idx<<"]"<<"  ";}
@@ -649,7 +649,7 @@ float calcObjectiveValueSeq( ServiceFunctionChain *cSFC, const vector<ServiceFun
 //                    if(distance[vnf_dst_idx] < distance[vnf_src_idx] + T_tx_init )
 //                        distance[vnf_dst_idx] = distance[vnf_src_idx] + T_tx_init ;
 //                }else{ //vnfIDdst != SFCdst
-//                    int vnf_dst_inst_idx = cSFC->I_VNFType2Inst[vnf_dst_idx];
+//                    int vnf_dst_inst_idx = X_VNFType2Inst[vnf_dst_idx];
 //                    int vm_dst_idx = VNFNetwork->I_VNFinst2VM[vnf_dst_idx][vnf_dst_inst_idx];
 //                    int pn_dst_idx = VirtualNetwork->I_VM2PN[vm_dst_idx];
 //                    VNFNode<type_res> *dstVNFNode = VNFNetwork->VNFNode[vnf_dst_idx];

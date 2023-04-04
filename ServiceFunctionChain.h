@@ -14,7 +14,7 @@ public:
     unordered_map<unsigned int, bool> isVNF_Present;  /*!< given VNF index check, if it in SFC or not. {vnfid, true/false}. used in calcualtion of queuing delay */
     vector<vector<unsigned int>> vnfBlocksPar; ///< vnfids in stage wise, where stg i denotes parallel vnf in ith stage. Exvept src and dest stg.
 
-    unordered_map<unsigned int, int> I_VNFType2Inst; ///< VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
+    unordered_map<unsigned int, int> I_VNFType2Inst; ///< for final par SFC, VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
 
     unordered_map<int, vector<int>> sAdj, pAdj;  /*!<  serial adjaceny list. parallel adjaceny list. */
     unordered_map<int, float> distanceSeq, distancePar; ///<stores longest distance to each node

@@ -113,15 +113,17 @@ void layerGraphConstruction_and_InstanceSelectionAndRouting(ServiceFunctionChain
 
 //    std::function<void( )> dfs = [&dfs, &partParSFC, &SFC, &VNFNetwork]
 //            (unsigned int stgid,  ) ->void{
-//        if(bi == curStg.size()){ // all functions in stage iterated.
-//            stg2InstCombinations[stgid].push_back(curInstComb); // push the one ans into combination stg.
+//        if(stgid == partParSFC.size()){ // all stages in SFC iterated..
+////            calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
 //            return;
 //        }
-//        unsigned int totInstancs = VNFNetwork->VNFNode[curStg[bi]]->numInstances;
-//        for(int instid=1; instid<=totInstancs; instid++){
-//            curInstComb.emplace_back(curStg[bi], instid); // push current instance
-//            dfs(bi+1, curInstComb, stgid, curStg); // call function for next instance
-//            curInstComb.pop_back(); // pop curInstComb instance and push next instance of same function.
+//        for(const auto& curStgFnId: partParSFC[stgid]){
+//            unsigned int totInstancs = VNFNetwork->VNFNode[curStgFnId]->numInstances;
+//            for(int instid=1; instid<=totInstancs; instid++){
+//                curInstComb.emplace_back(curStg[bi], instid); // push current instance
+//                dfs(bi+1, curInstComb, stgid, curStg); // call function for next instance
+//                curInstComb.pop_back(); // pop curInstComb instance and push next instance of same function.
+//            }
 //        }
 //    };
 
@@ -316,9 +318,9 @@ int main()
     debug=0;
     for(int ni=1; ni<=total_SFC; ni++){
         cout<<"\nSFC["<<ni<<"] E2E: ";
-        cout<<"Seq["<<calcObjectiveValueSeq<type_wgt_local, type_res_local>(SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
-        cout<<"Par["<<calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
-        cout<<"Pkt["<<calcTime_PacketsDelay<type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni], VNFNetwork, VirtualNetwork)<<"]";
+        cout<<"Seq["<<calcObjectiveValueSeq<type_wgt_local, type_res_local>(SFC[ni], SFC[ni]->I_VNFType2Inst, SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
+        cout<<"Par["<<calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar,SFC[ni]->I_VNFType2Inst,  SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
+        cout<<"Pkt["<<calcTime_PacketsDelay<type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni]->I_VNFType2Inst, SFC[ni], VNFNetwork, VirtualNetwork)<<"]";
     }
     debug=1;
 
