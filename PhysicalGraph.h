@@ -81,7 +81,7 @@ public:
 
     unordered_map<unsigned int, PhysicalNode<type_res>*> PNode; ///< index to Physical Node address
     vector<PhysicalEdge<type_wgt> *> *adj; ///< adjacency list[u] = {v1,wt1}->{v2,wt2}
-    vector<vector<type_wgt>> mat, dist; /*!< adjacency Matrix original distances. in Meters. max distance 2*Radius of Earth = 12756000 meters,distance Matrix calculated using all pairs shortest path */
+    vector<vector<type_wgt>> mat /*!< adjacency Matrix original distances. in Meters. max distance 2*Radius of Earth = 12756000 meters,*/; vector<vector<type_wgt>> dist; ///<distance Matrix calculated using all pairs shortest path
     vector<vector<unsigned int>> nextHop; ///< nextHop of distance Matrix
     type_wgt TypeMaxValue = numeric_limits<type_wgt>::max(); /*!< max Value of the data type. \n float: 3.40282e+38 or 0x1.fffffep+127 \n size_t: 18446744073709551615 or 0xffffffffffffffff.*/
     type_wgt EPS = std::numeric_limits<type_wgt>::epsilon();/*!< EPS Returns the machine epsilon, that is, the difference between 1.0 and the next value representable by the floating-point type T. \n It is only meaningful if std::numeric_limits<T>::is_integer == false. \n double	= DBL_EPSILON, float = FLT_EPSILON, unsigned int = 0 */
@@ -372,7 +372,7 @@ void PhysicalGraph<type_wgt,type_res>::calcAllPairsShortestPath()
             }
         }
     }
-    if(debug)cout<<"\n\t[All Pairs Shortest Path Completed.]";
+    if(debug)cout<<"\n\t[All Pairs Shortest Path Completed]";
 }
 
 

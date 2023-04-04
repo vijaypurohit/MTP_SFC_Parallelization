@@ -17,8 +17,10 @@ public:
     float serviceRate{}; ///< rate of service of vnf. in packets per second. arrival rate < service rate.
     float executionTime{}; ///< time taken to execute the particular function
     NodeCapacity<type_res> requirement; ///<  requirements  of the VM node. Type NodeCapacity.
-    VNFNode(int _index, const string& _name, int _instance, float _serviceRate, float _execTime, NodeCapacity<type_res> _givenRequirements): requirement(_givenRequirements)
-    {
+
+    unordered_map<unsigned int,pair<int,int>> inst2nw; ///< collecting information for each VNF node that what are its instances and where are they hosted {vmid, pnid} {vnf ke instance id (1-based) --> {VM_id, PN_id};
+
+    VNFNode(int _index, const string& _name, int _instance, float _serviceRate, float _execTime, NodeCapacity<type_res> _givenRequirements): requirement(_givenRequirements){
         this->index = _index; this->name = _name; this->numInstances = _instance;
         this->serviceRate = _serviceRate; this->executionTime = _execTime;
     }
@@ -35,9 +37,10 @@ class VirtualNetworkFunctions
     unsigned int numParallelPairs{}; //< count of number of pairs which are parallel
     unsigned int numVNF{}  /*!<  number of unique type of VNFs  */; unsigned int srcVNF /*!< starting VNF to iterate the loop*/;
 public:
-    vector<vector<int>> I_VNFinst2VM; ///< VNF is hosted on which VM. {VNFid -> {instid -> VM id}}
     unordered_map<unsigned int, VNFNode<type_res>*> VNFNode; ///<Index to VNF structure
     unordered_map<int,unordered_set<int>> parallelPairs; ///< {i_vnfid ->{j_vnfid it is parallel to}} pairs identifying which are parallel
+
+    vector<vector<int>> I_VNFinst2VM; ///< VNF {type,inst} is hosted on which VM. {VNFid -> {instid -> VM id}} ie. arr[vnf][inst]=vmid;, inst->1based indexing
     /*! @param _numVirtualNetworkFunctions number of VNFs */
     explicit VirtualNetworkFunctions(unsigned int _numVirtualNetworkFunctions)
     {
@@ -86,7 +89,7 @@ void VirtualNetworkFunctions<type_res>::showVNFs_Description(){
  /*
  * @param vnfIndex VNF index
  * @param vmIndex Virtual Machine Index
- * @param instance Index of the VNF type instance 1,2,3
+ * @param instance Index of the VNF type instance 1,2,3 (1-based indexing)
  * @tparam type_res resource data type. default=unsigned int.
  */
 template <class type_res>

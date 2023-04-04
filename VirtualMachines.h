@@ -15,7 +15,7 @@ public:
     /*! physical node index. Type int.  */
     int index{};  string name; ///<node name
     NodeCapacity<type_res> capacity, requirement; /*!< capacity of the VM node to host VNFs. Type NodeCapacity. \n requirements  of the VM node for hosting on physical node. Type NodeCapacity.*/
-    vector<pair<int,int>> VNFs; ///< vnfs indexes hosted on vm id.
+    vector<pair<int,int>> VNFs; ///< vnfs indexes hosted on vm id. {vnf_idx, instance_idx (1-based indexing)}
     /*!
      * @param _index physical node index. Type int.
      * @param _name node name

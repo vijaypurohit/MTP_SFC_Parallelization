@@ -5,18 +5,14 @@
 #include <iostream>
 #include <vector>
 #include <queue>
-#include <string>
 #include <fstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <filesystem>
-#include <cmath>
 //#include <limits> // numeric_limits
-//#include <random>       //to generate random number
 //#include <chrono>       //to seed random number
-//#include <sstream>
-#include <random>
-#include <functional>
+#include <random> //to generate random number
+#include <functional>  // lambda function
 
 using namespace std;
 
@@ -43,8 +39,8 @@ const string filename_vnf_parallelpairs = "VNFs_ParallelPairs.txt";
 #define SFCdst (-10)
 #define SFCseq (-11)
 #define SFCpar (-12)
-#define maxSFClen 10
-
+#define maxSFCLength 10
+#define maxVNF_Instances 5
 /*!
  * @param factor_packet factor to multiply to convert packet size in bits. 1 Byte is 8 bits
  * @param packetBodySize, packetHeaderSize Size of the Network Packet Body and Header. in Bytes.
@@ -64,25 +60,12 @@ unsigned int  speedOfLight = 300000000;
 unsigned int total_SFC = 0;
 float read_write_time_per_bit = 0.077e-3;
 
-void debugPrint(const string& msg){
-    if(debug) cout<<msg;
-}
+
 #include "PhysicalGraph.h" // graph structure for physical network, physical node and edge and node capacity
 #include "VirtualMachines.h" //  structure for virtual machines, virtual node
 #include "VirtualNetworkFunctions.h" // structure for VNFnode, VNF,
 #include "ServiceFunctionChain.h" // structure SFC
 #include "FileReadingFunctions.h"
-
-//template<class T>
-//typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
-//almost_equal(T x, T y, int ulp)
-//{
-//    // the machine epsilon has to be scaled to the magnitude of the values used and multiplied by the desired precision in ULPs (units in the last place)
-//    return std::fabs(x - y) <= std::numeric_limits<T>::epsilon() * std::fabs(x + y) * ulp
-//           // unless the result is subnormal
-//           || std::fabs(x - y) < std::numeric_limits<T>::min();
-//}
-
 #include "TimeCalculationFunctions.h"
 #include "AssignmentFunctions.h"
 #include "Algorithms.h"
@@ -112,17 +95,118 @@ void debugPrint(const string& msg){
 //    }
 //
 //}
+/*!
+* @tparam type_wgt edge weight data type. default=unsigned int.
+* @tparam type_res resource data type. default=unsigned int.
+*/
+template<typename type_wgt=unsigned int, typename type_res=unsigned int>
+void layerGraphConstruction_and_InstanceSelectionAndRouting(ServiceFunctionChain *SFC,
+                                                            VirtualNetworkFunctions<type_res> *VNFNetwork,
+                                                            const VirtualMachines<type_res> *VirtualNetwork,
+                                                            const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork) {
 
 
+
+    /*! {{1},{6,4},{5}}; Each Partial SFC is without src and dest block/stage. */
+    vector<vector<unsigned int>> partParSFC = {{1},{6,4},{5}} ;
+    unsigned int szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
+
+//    std::function<void( )> dfs = [&dfs, &partParSFC, &SFC, &VNFNetwork]
+//            (unsigned int stgid,  ) ->void{
+//        if(bi == curStg.size()){ // all functions in stage iterated.
+//            stg2InstCombinations[stgid].push_back(curInstComb); // push the one ans into combination stg.
+//            return;
+//        }
+//        unsigned int totInstancs = VNFNetwork->VNFNode[curStg[bi]]->numInstances;
+//        for(int instid=1; instid<=totInstancs; instid++){
+//            curInstComb.emplace_back(curStg[bi], instid); // push current instance
+//            dfs(bi+1, curInstComb, stgid, curStg); // call function for next instance
+//            curInstComb.pop_back(); // pop curInstComb instance and push next instance of same function.
+//        }
+//    };
+
+    /*! level to Instances Combinations = set of instance combination in block/stage/level index j. partParSFC = {{1},{6,4},{5}}  \n
+     * stg 0 (1 function has 3 instances), B[0] = 2d{  1d[<1a>] [<1b>] [<1c>]  }\n
+     * stg 1(2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] }\n
+     * stg 2(1 function 2 instances), B[2] = {[5a] [5b] [5c}\n
+     * Time to calculte stg2InstCombinations -> if in any block number of parallel functions are 10 and each have\n
+        inst = 2 (exe time: 1-2ms) (possibilites: 1024 (2^10)) \n
+        inst = 3 (exe time: 38-40ms) (possibilites: 59049 (3^10))\n
+        inst = 4 (exe time: 580-600ms) (possibilites: 10 48576 )\n
+        inst = 5 (exe time: 5700-5800ms) (possibilites: 197 65625)\n
+     */
+    unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> > stg2InstCombinations;
+    std::function<void(unsigned int, vector<pair<unsigned int,unsigned int>>&, unsigned int&, const vector<unsigned int>&)> findBofGivenBlk = [&findBofGivenBlk, &stg2InstCombinations, &VNFNetwork]
+            (unsigned int bi, vector<pair<unsigned int,unsigned int>>& curInstComb, unsigned int& stgid, const vector<unsigned int>& curStg) ->void{
+        if(bi == curStg.size()){ // all functions in stage iterated.
+            stg2InstCombinations[stgid].push_back(curInstComb); // push the one ans into combination stg.
+            return;
+        }
+        unsigned int totInstancs = VNFNetwork->VNFNode[curStg[bi]]->numInstances;
+        for(int instid=1; instid<=totInstancs; instid++){
+            curInstComb.emplace_back(curStg[bi], instid); // push current instance
+            findBofGivenBlk(bi+1, curInstComb, stgid, curStg); // call function for next instance
+            curInstComb.pop_back(); // pop curInstComb instance and push next instance of same function.
+        }
+    };
+
+    for(unsigned int stgid=0; stgid<szStages; stgid++){
+        const auto& curStg = partParSFC[stgid];
+
+        if(curStg.size() == 1){ // only one function in the block, then insert all its instance as combination
+            for(int instid=1; instid<=VNFNetwork->VNFNode[curStg[0]]->numInstances; instid++)
+                stg2InstCombinations[stgid].push_back({{curStg[0], instid}});
+        }
+        else{
+            vector<pair<unsigned int,unsigned int>> curInstComb;
+            findBofGivenBlk(0, curInstComb, stgid, curStg);
+        }
+
+    }
+
+    for(const auto& x: stg2InstCombinations){
+        cout<<"\nSTG["<<x.first<<"]("<<x.second.size()<<") { ";
+        for(const auto& y: x.second){
+            cout<<"[";
+            for(const auto& z: y){
+                cout<<""<<z.first<<char(z.second-1+'a')<<" ";
+            }
+            cout<<"]";
+        }
+        cout<<" }";
+    }
+
+//    struct layerGraphNode{
+//        pair<unsigned int,unsigned int> lev2InstCombId;
+//    };
+//
+//    unordered_map<int,vector<layerGraphNode>> lgAdj;
+//    unsigned int stg_nxt_idx = 1;
+//    /*!
+//     * stg 0 (1 function has 3 instances), B[0] = 2d{  1d[<1a>] [<1b>] [<1c>]  }\n
+//     * stg 1 (2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] }\n
+//     * stg 2 (1 function 2 instances), B[2] = {[5a] [5b] [5c}\n
+//     */
+//    for (const vector<pair<unsigned int,unsigned int>> &stgNxtComb: stg2InstCombinations[stg_nxt_idx]){  //int vnf_dst_inst_idx =0, vm_dst_idx=0,pn_dst_idx =vnf_dst_idx;
+//         for(const auto& curComb: stgNxtComb){
+//
+//
+//         }
+//    }
+
+
+}
 
 
 
 int main()
 {
-// TODO: partial parallel chain?
-// TODO: parallel graph data collection
-// TODO: Finding number of VNF instances, VNF Deployement
+// TODO: Finding number of VNF instances, and then VNF Deployement
 // TODO: existing heuritics compare with bruteforce
+// TODO: try to remove sAdj /pAdj as they are mainly not required.
+// TODO: can you parallelise some aspects of program??
+// TODO:
+// TODO: parallel graph data collection
 
 //    auto ft_start = std::chrono::steady_clock::now();
 //    clusterSizeEnumeration(int(clusterSz.size()),maparVNFs_Cluster_AssignemtnxSFClen);
@@ -130,7 +214,6 @@ int main()
 //    vector<vector<int>> parSFC_Full = {{1}, {2,3,4,5}};
 //    parVNFs_Cluster_Assignment(5, parSFC_Full, false);
 //    if(debug)cout<<"\nTime:"<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
-
 
     using type_wgt_local = float; ///< Determine Edge Weights Data TYPE (unsigned int or FLOAT)
     using type_res_local = unsigned int; ///< Determine Resource Data TYPE (unsigned int or FLOAT)
@@ -158,29 +241,12 @@ int main()
     vector<ServiceFunctionChain*> SFC;
     try{  readGenericServiceFunctionsChains(testDirName, SFC);
     } catch( std::exception const& e ) { std::cerr << "caught: " << e.what() << std::endl; }
-
-    for(int ni=1; ni<=total_SFC; ni++) convertSeqSFC_to_FullParallelSFC<type_res_local>(SFC[ni], VNFNetwork);
-    if(debug)cout<<"\n\t[SFC converted to Full Parallelised Chain]. Parallel SFC File:"<<output_directory+testDirName+filename_sfc_parallel;
+    for(int ni=1; ni<=total_SFC; ni++) convertSeqSFC_to_FullParVNFBlocks<type_res_local>(SFC[ni], VNFNetwork);
+//    SFC[1]->convertToParallelSFC({{1},{6,4},{5}});
+//    SFC[2]->convertToParallelSFC({{10},{4,8,3},{2,1},{5}});
+//    SFC[3]->convertToParallelSFC({{4,8},{7,10,9}});
 //    for(int ni=1; ni<=total_SFC; ni++) SFC[ni]->showSFC_BlockWise(SFCpar);
-    auto ft_start = std::chrono::steady_clock::now();
-    parVNFs_Cluster_Assignment(SFC[3], true);
-    if(debug)cout<<"\nTime:"<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
 
-//    SFC[1]->convertToParallelSFC({{SFCsrc},{1},{6,4},{5},{SFCdst}});
-//    SFC[2]->convertToParallelSFC({{SFCsrc},{10},{4,8,3},{2,1},{5},{SFCdst}});
-//    SFC[3]->convertToParallelSFC({{SFCsrc},{4,8},{7,10,9},{SFCdst}});
-//    for(int ni=1; ni<=total_SFC; ni++) SFC[ni]->showAdjList(SFCpar);
-    return 0;
-    /// Mapping of VM id to PN id
-    vector<pair<int,int>> VM_TO_PN = {
-            {1, 1}, {2, 1},
-            {3, 2}, {4, 2},
-            {5, 3}, {6, 3}, {14, 3},
-            {7, 4}, {8, 4},
-            {11, 5}, {12, 5}, {13, 5},
-            {9, 6}, {10, 6}
-    };
-    assign_VM_2_PN<type_wgt_local, type_res_local>(VM_TO_PN, VirtualNetwork, PhysicalNetwork);
 
     /// Determination of how many instances of particular VNFs are required.
     vector<pair<int,int>> VNF_TO_InstancesCnt = {
@@ -204,6 +270,17 @@ int main()
     };
     assign_VNF_2_VM<type_res_local>(VNF_TO_VM, VNFNetwork, VirtualNetwork);
 
+    vector<pair<int,int>> VM_TO_PN = {
+            {1, 1}, {2, 1},
+            {3, 2}, {4, 2},
+            {5, 3}, {6, 3}, {14, 3},
+            {7, 4}, {8, 4},
+            {11, 5}, {12, 5}, {13, 5},
+            {9, 6}, {10, 6}
+    };
+    assign_VM_2_PN<type_wgt_local, type_res_local>(VM_TO_PN, VirtualNetwork, PhysicalNetwork);
+
+
     /// for SFC -> Mapping of its VNF type to its instance id
     vector<vector<pair<int,int>>> VNFType_TO_InstID(total_SFC+1);
     VNFType_TO_InstID[1] = { {1, 1}, {6, 2}, {4, 1}, {5, 1} };
@@ -213,20 +290,37 @@ int main()
     assign_ForSFC_VNFType_2_InstID(VNFType_TO_InstID[2], SFC[2]);
     assign_ForSFC_VNFType_2_InstID(VNFType_TO_InstID[3], SFC[3]);
 
+//    auto ft_start = std::chrono::steady_clock::now();
+////    parVNFBlocks_ClusterAssignment_ForSFC(SFC[1]);
+//    layerGraphConstruction_and_InstanceSelectionAndRouting(SFC[1], VNFNetwork, VirtualNetwork, PhysicalNetwork, true);
+//    if(debug)cout<<"\nTime:"<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
+
 //    PhysicalNetwork->showPNs_Description();
 //    VirtualNetwork->showVMs_Description();
 //    VNFNetwork->showVNFs_Description();
 //    for(int ni=1; ni<=total_SFC; ni++) SFC[ni]->showSFC_BlockWise(SFCseq);
 //    for(int ni=1; ni<=total_SFC; ni++) SFC[ni]->showSFC_BlockWise(SFCpar);
 
-//    debug=0;
-//    for(int ni=1; ni<=total_SFC; ni++){
-//        calcObjectiveValueSeq<type_wgt_local, type_res_local>(SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
-//        calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
-//        calcTime_PacketsDelay<type_res_local>(SFC[ni], VNFNetwork, VirtualNetwork);
-//        cout<<"\nSFC["<<ni<<"] E2E: Seq["<<SFC[ni]->distanceSeq[SFCdst]<<"]  Par["<<SFC[ni]->distancePar[SFCdst]<<"]  Pkt["<<SFC[ni]->pktDist[SFC[ni]->vnfBlocksPar.size()-1][SFCdst]<<"]";
+
+//// collecting information for each VNF node that what are its instances and where are they hosted {vmid, pnid}
+//    for (const auto& [NFid, NF]: VNFNetwork->VNFNode) {
+////        cout<<"\n F["<<NFid<<"] -> { ";
+//        for(unsigned int inst_id=1; inst_id<=NF->numInstances; inst_id++){
+//            int vm_id = VNFNetwork->I_VNFinst2VM[NFid][inst_id];
+//            int pn_id = VirtualNetwork->I_VM2PN[vm_id];
+//            NF->inst2nw[inst_id] = {vm_id,pn_id};
+////            cout<<"VM["<<vm_id<<"]"<<"PN["<<pn_id<<"] | ";
+//        }
+////        cout<<" }";
 //    }
-//    debug=1;
+    debug=0;
+    for(int ni=1; ni<=total_SFC; ni++){
+        cout<<"\nSFC["<<ni<<"] E2E: ";
+        cout<<"Seq["<<calcObjectiveValueSeq<type_wgt_local, type_res_local>(SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
+        cout<<"Par["<<calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
+        cout<<"Pkt["<<calcTime_PacketsDelay<type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni], VNFNetwork, VirtualNetwork)<<"]";
+    }
+    debug=1;
 
 
 
@@ -247,3 +341,23 @@ int main()
 
     return 0;
 }
+
+//#pragma omp parallel default(none)
+//{ // Parallel Section
+//// Lists number of threads and prints thread number currently executing print command
+//printf("There are %d threads. Hello from thread %d\n", omp_get_num_threads(), omp_get_thread_num());
+//}
+
+//void debugPrint(const string& msg){
+//    if(debug) cout<<msg;
+//}
+
+//template<class T>
+//typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
+//almost_equal(T x, T y, int ulp)
+//{
+//    // the machine epsilon has to be scaled to the magnitude of the values used and multiplied by the desired precision in ULPs (units in the last place)
+//    return std::fabs(x - y) <= std::numeric_limits<T>::epsilon() * std::fabs(x + y) * ulp
+//           // unless the result is subnormal
+//           || std::fabs(x - y) < std::numeric_limits<T>::min();
+//}

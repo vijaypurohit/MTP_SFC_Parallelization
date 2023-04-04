@@ -208,8 +208,7 @@ void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFuncti
 }
 
 /*! Function will read the SFC chains data from the file in the input directory and read into ServiceFunctionChain class.\n\n
- * It will simultaneously read vnf data into sequential vector and also construct adj list.
- * It then convert into parallel SFC also. \n\n
+ * It will simultaneously read vnf data into sequential vector and also construct adj list. \n\n
  * First Line in file consist of numOfSFC S\n
  * from next line upto S times, each s in S group consist\n
  * Name of SFC\n
@@ -244,13 +243,13 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
             allSFC[ni]->vnfSeq.push_back(SFCsrc);
             for(int vj = 1; vj<=readSFC_totalVNF; vj++) ///< read VNFs type ID.
                 if(fin>>vnfid) {
-                    allSFC[ni]->sAdj[allSFC[ni]->vnfSeq.back()].push_back(vnfid); //< srcVNFid = SFC->vnfSeq.back(), dstVNFid = vnfid (cur), it should be before inserting into vnfseq
+//                    allSFC[ni]->sAdj[allSFC[ni]->vnfSeq.back()].push_back(vnfid); //< srcVNFid = SFC->vnfSeq.back(), dstVNFid = vnfid (cur), it should be before inserting into vnfseq
                     allSFC[ni]->vnfSeq.push_back(vnfid);
                     allSFC[ni]->isVNF_Present[vnfid]= true;
                     allSFC[ni]->I_VNFType2Inst[vnfid] = 1; ///< initially vnf are mapped to their first instance
                 }
                 else cerr << "\t VNF for SFCs Data Reading Failed: SFC Row["<<ni<<"]. VNFid["<<vnfid<<"]\n";
-            allSFC[ni]->sAdj[allSFC[ni]->vnfSeq.back()].push_back(SFCdst);
+//            allSFC[ni]->sAdj[allSFC[ni]->vnfSeq.back()].push_back(SFCdst);
             allSFC[ni]->vnfSeq.push_back(SFCdst);
             /// reading VNFs data to array and then convert to Adj list.
 //            allSFC[ni]->ConvertSequentialSequenceToAdj(); // this function not needed as I accomdated the logic to above

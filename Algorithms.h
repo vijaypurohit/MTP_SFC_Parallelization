@@ -378,6 +378,158 @@ void all_nCk(unsigned int n, unsigned int N, bool showInConsole=false){
     }
 }
 
+/*! It reads data from sequential vector and then convert into full Parallel SFC (parallel VNF blocks) chain by detecting whether two function can be parallelised or not.\n
+ * Each block denote fully parallel VNFs in that step.
+ * @param SFC ServiceFunctionChain object to convert sequential into parallel.
+ * @param VNFNetwork object of VirtualNetworkFunctions class required to check two vnf are parallelizable or not.
+ */
+template<typename type_res=unsigned int>
+void convertSeqSFC_to_FullParVNFBlocks(ServiceFunctionChain* SFC, VirtualNetworkFunctions<type_res> *VNFNetwork){
+    unsigned int sz = SFC->vnfSeq.size(); // total vnfs including src and dest
+//    SFC->vnfBlocksPar.push_back({SFCsrc}); // stage 0, pushing src node
+    for(int cid=1; cid<sz-1; cid++){ // from SFCsrc+1 stg to SFCdst-1 stage
+        unsigned int prv_vnf = SFC->vnfSeq[cid-1], cur_vnf = SFC->vnfSeq[cid];  // Checking prv_vnf --> cur_vnf pairs
+        // NOT PARALLEL, if prv_vnf does not exist as first vnf in pair or if prv_vnf exist it is not parallel to cur_vnf, then it is not parallel pair
+        if(VNFNetwork->parallelPairs.count(prv_vnf)==0 or VNFNetwork->parallelPairs[prv_vnf].find(cur_vnf) == VNFNetwork->parallelPairs[prv_vnf].end()){
+            SFC->vnfBlocksPar.push_back({cur_vnf});// push cur_vnf as separte new stage
+        }else if(SFC->vnfBlocksPar.back().size() == 1) { //PARALLEL Pairs STG Size=1 and size of previous stg is just one, then we can directly push into that stg.
+            SFC->vnfBlocksPar.back().push_back(cur_vnf);
+        }else{ // PARALLEL Pairs and STG size > 1, from previous stg we have to check if cur_vnf is parallel to all prv_vnf in previous stage
+            bool pushInLstStg = true;
+            for(const unsigned int& lst_stg_vnf: SFC->vnfBlocksPar.back()){
+                if(VNFNetwork->parallelPairs.count(lst_stg_vnf)==0 or VNFNetwork->parallelPairs[lst_stg_vnf].find(cur_vnf) == VNFNetwork->parallelPairs[lst_stg_vnf].end()){
+                    pushInLstStg = false;   break;
+                }
+            }
+            if(pushInLstStg) SFC->vnfBlocksPar.back().push_back(cur_vnf);
+            else SFC->vnfBlocksPar.push_back({cur_vnf});
+        }//lst stg size>1
+    }// for cid
+    if(debug and SFC->index == total_SFC)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
+}
+
+/*! generate all the feasible partial parallel SFC for the given full parallel SFC.
+ * @param nVNFs is number of VNFs except src and dest in fully parallel SFC.
+ * @param clusterSz for each of the cluster enumeration for size[nVNFs].
+ * @param nCk n=block size and k={cluster_i[l] value i.e. l(level) index value dentoes number of function(k) to be chosen as parallel out of all functions(n) in blocks.
+ * @param fullParVNFBlocks is fully parallel VNF Blocks in sequence where each block/step denotes all the parallelizable functions in that block/step.
+ * @return allPartParSFC All the Partial parallel Clusters of the fully parallel VNF Blocks. Each SFC is without src and dest.
+ * @ForExample: fullParVNFBlocks={{1},{2,3,4,5}}, nVNFs:5 (f1,f2,f3,f4,f5).\n
+ * Blk(0) = {1} only 1 parallel function, Blk(1) = {2,3,4,5} all 4 are parallel.\n
+ * clusterSz[5(size=nVNFs)] = {{1, 2,1,1},{1,4},{3,1,1} ... } so on. cluster_i[l] denotes number of function parallel in that level. \n
+ * where cluster_i {1, 2, 1, 1} means in level[0] only one function runs, level[2] = 2 functions run together, and level[3] and level[4] one-one function are there \n
+ * {[1], [2,1,1]} is mapped to {[f1], [f2,f3,f4,f4]} such that [ 1-c combination of f1 ]-> [2-c combination of f2,f3,f4,f5] -> [1-c combination of f2,f3,f4,f5] -> [1-c combination of f2,f3,f4,f5] \n
+ */
+void parVNFBlocks_ClusterAssignment_ForSFC(ServiceFunctionChain* SFC, bool showInConsole = false){
+    const vector<vector<unsigned int>>& fullParVNFBlocks = SFC->vnfBlocksPar;
+    const unsigned int& nBlk = fullParVNFBlocks.size(); ///< number of blocks of the fully parallel SFC, (including src and dst block)
+    vector<vector<vector<unsigned int>>> allPartParSFC; ///< All the Partial parallel Clusters of the fully parallel VNF Blocks. Each SFC is without src and dest.
+//    const vector<vector<unsigned int>> SK = { {1,  2,1,1},{1, 2,2}, {1,4}, {2,2,1}, {3,1,1} };
+
+    /// lambda backtrack function to find all partial sfc corresponding to cluster_i and parSFC_Full.
+    std::function<void(unsigned int,vector<vector<unsigned int>>&,unordered_map<unsigned int,vector<unsigned int>>&, unsigned int&)> findAllPartSFC_Backtrack=[&findAllPartSFC_Backtrack, &allPartParSFC, &fullParVNFBlocks]
+            (unsigned int cur_level_idx, vector<vector<unsigned int>>&partSFC, unordered_map<unsigned int,vector<unsigned int>>& levelInfo, unsigned int& mask) ->void
+    {
+        // if current level is equal to total level in cluster/SFC.
+        if(cur_level_idx == levelInfo.size()) {
+            allPartParSFC.push_back(partSFC);
+            return;
+        }
+
+        unsigned int blkid = levelInfo[cur_level_idx][0], nl = levelInfo[cur_level_idx][1], kl= levelInfo[cur_level_idx][2];
+        for(const vector<unsigned int>& curCombination: nCk[nl][kl]){ //n=4,k=1 {{1}, {2}, {3}, {4}} } | k=2 {{1,2},{1,3},{1,4},{2,3},{2,4},{3,4}} }
+            bool thisCombinationCanBeVisited = true;
+
+            vector<unsigned int> curBlkFunc; //< if we can visit this combination then this vector will be current blk
+            unsigned int localMask=0;
+            for(const unsigned int& idx: curCombination){ // check if the curCombination idx{2,3} mapped to block func {fw (id 1-1), fx (id 2-1), fy (id 3-1)} --> fx, fy can be visited or its node already visited.
+                int fn_id = fullParVNFBlocks[blkid][idx-1];
+                if((mask & (1<<fn_id)) != 0){ thisCombinationCanBeVisited=false; break; }
+                curBlkFunc.push_back(fn_id);
+                localMask |= (1<<fn_id);
+            }
+            if(thisCombinationCanBeVisited){
+                mask |= localMask;
+                partSFC.push_back(std::move(curBlkFunc));
+                findAllPartSFC_Backtrack(cur_level_idx+1, partSFC, levelInfo, mask);
+                mask ^= localMask;
+                partSFC.pop_back();
+            }
+        }
+    };
+
+
+    if(showInConsole){
+        SFC->showSFC_BlockWise(SFCpar);
+    }
+    for(const vector<unsigned int>& cluster: clusterSz[SFC->numVNF]){ //
+        if(cluster[0] > fullParVNFBlocks[1].size()) // if in first block(after src blk) 2 function is there, but cluster saying 3 needs to be parallel then continue next cluster.
+            continue;
+
+        unsigned int cur_level=0; ///< current level at which we have to insert all the nodes
+        unordered_map<unsigned int,vector<unsigned int>> levelInfo;///< this stores level wise info {level i -> {0 -> blkId, 1->n, 2-> k}} to find nCk for block blkId of parSFC_Full
+
+
+        if(showInConsole){
+            cout<<"\ncluster["; for(const auto& x: cluster) cout<<x<<" "; cout<<"]";
+        }
+        bool allBlksOfSFCDone = true;
+        // iterate through the blocks (except src (1) and dst(nBlk-1) and map it to cur cluster.
+        for(unsigned int blk_id=1; blk_id<nBlk-1; blk_id++){
+            const unsigned int& curBlk_size = fullParVNFBlocks[blk_id].size();  ///< current block size, that is num of VNFs present in it.
+
+            /*!
+             * It checks whether cluster_i is a feasible vector size and we can find same number of parallel VNFs specified by the cluster. cluster_i[l] number of func can run in parallel. \n
+             * If we cannot find the same number of parallel VNFs specified by cluster_i, then it is not feasible. e.g. [2,2] is not feasible for {f1,f2,f3} block. \n
+             * feasible [1, 2,1,1] and {{f1},{f2,f3,f4,f5}} where [1] is mapped to {f1} and  entire [2+1+1] is mapped to {f2,f3,f4,f5}
+             */
+            bool foundMapping=false; unsigned int delta=0; //< delta is range of level [endLevel-curLevel] upto which we can parallelize current block.
+            for(unsigned int li=cur_level, sum_s=0; li<cluster.size() and sum_s < curBlk_size; li++){
+                sum_s += cluster[li]; delta++;
+                if(sum_s == curBlk_size){
+                    foundMapping = true; break;
+                }
+            }
+            if(!foundMapping) {
+                if(showInConsole){ cout<<"\tNot feasible for block{"; for(const auto& x: fullParVNFBlocks[blk_id]) cout<<"f"<<x<<","; cout<<"}";}
+                allBlksOfSFCDone = false; // break lag gya isliye dfs call mt krna
+                break;
+            }
+
+            for(unsigned int li=cur_level; li<cur_level+delta; li++){
+                if(showInConsole){
+                    cout<<"\n\tL["<<li+1<<"]: \t";
+                    for(const auto& allComb: nCk[curBlk_size][cluster[li]]) {
+                        cout<<"{"; for(auto node: allComb) cout<<"f"<<fullParVNFBlocks[blk_id][node-1]<<",";  cout<<"}";
+                    }
+                }
+                levelInfo[li] = {blk_id, curBlk_size, cluster[li]};
+            }
+            cur_level = cur_level+delta;
+        }
+        if(allBlksOfSFCDone) { //            cout<<"dfs called.";
+            vector<vector<unsigned int>>partSFC; unsigned int mask=0;
+            findAllPartSFC_Backtrack(0, partSFC, levelInfo, mask);
+        }
+    }
+
+    if(showInConsole){
+        cout<<"\nTotal PartSFC:"<<allPartParSFC.size();
+        for(int idx=0; idx<allPartParSFC.size(); idx++){
+            const auto& PCs = allPartParSFC[idx];
+            cout<<"\nPC["<<idx+1<<"] ( "; unordered_map<unsigned int,unsigned int> freq;
+            for(const auto& blks: PCs){
+                cout<<"["; for(auto fn_id: blks){
+                    cout<<"f"<<fn_id<<" ";
+                    if(++freq[fn_id]>1)  throw runtime_error("Error in calculation of allPartSFC. Some fn_id repeated");
+                } cout<<"]";
+            } cout<<")";
+        }
+    }
+
+}
+
+
 /*! It reads data from sequential vector and then convert into full parallel service chain by detecting whether two function can be parallelised or not. \n
  * Also convert into parallel Adj list. \n
  * In the end write the parallel sfc into file.
@@ -387,10 +539,10 @@ void all_nCk(unsigned int n, unsigned int N, bool showInConsole=false){
  */
 template<typename type_res=unsigned int>
 void convertSeqSFC_to_FullParallelSFCAndWriteToFile(const string& testDirName, ServiceFunctionChain* SFC, VirtualNetworkFunctions<type_res> *VNFNetwork){
-    size_t sz = SFC->vnfSeq.size(); // total vnfs including src and dest
-    SFC->vnfBlocksPar.push_back({SFCsrc}); // stage 0, pushing src node
-    for(int idx=1; idx<sz; idx++){
-        int prv_vnf = SFC->vnfSeq[idx-1], cur_vnf = SFC->vnfSeq[idx];  // Checking prv_vnf --> cur_vnf pairs
+    unsigned int sz = SFC->vnfSeq.size(); // total vnfs including src and dest
+//    SFC->vnfBlocksPar.push_back({SFCsrc}); // stage 0, pushing src node
+    for(int cid=1; cid<sz-1; cid++){ // from SFCsrc+1 stg to SFCdst-1 stage
+        unsigned int prv_vnf = SFC->vnfSeq[cid-1], cur_vnf = SFC->vnfSeq[cid];  // Checking prv_vnf --> cur_vnf pairs
         // NOT PARALLEL, if prv_vnf does not exist as first vnf in pair or if prv_vnf exist it is not parallel to cur_vnf, then it is not parallel pair
         if(VNFNetwork->parallelPairs.count(prv_vnf)==0 or VNFNetwork->parallelPairs[prv_vnf].find(cur_vnf) == VNFNetwork->parallelPairs[prv_vnf].end()){
             SFC->vnfBlocksPar.push_back({cur_vnf});// push cur_vnf as separte new stage
@@ -398,7 +550,7 @@ void convertSeqSFC_to_FullParallelSFCAndWriteToFile(const string& testDirName, S
             SFC->vnfBlocksPar.back().push_back(cur_vnf);
         }else{ // PARALLEL Pairs and STG size > 1, from previous stg we have to check if cur_vnf is parallel to all prv_vnf in previous stage
             bool pushInLstStg = true;
-            for(int lst_stg_vnf: SFC->vnfBlocksPar.back()){
+            for(const unsigned int& lst_stg_vnf: SFC->vnfBlocksPar.back()){
                 if(VNFNetwork->parallelPairs.count(lst_stg_vnf)==0 or VNFNetwork->parallelPairs[lst_stg_vnf].find(cur_vnf) == VNFNetwork->parallelPairs[lst_stg_vnf].end()){
                     pushInLstStg = false;   break;
                 }
@@ -406,7 +558,8 @@ void convertSeqSFC_to_FullParallelSFCAndWriteToFile(const string& testDirName, S
             if(pushInLstStg) SFC->vnfBlocksPar.back().push_back(cur_vnf);
             else SFC->vnfBlocksPar.push_back({cur_vnf});
         }//lst stg size>1
-    }// for idx
+    }// for cid
+    if(debug and SFC->index == total_SFC)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
 
     // Inserting into Adj List.
     size_t stages = SFC->vnfBlocksPar.size(); ///< stages of SFC.
@@ -445,157 +598,4 @@ void convertSeqSFC_to_FullParallelSFCAndWriteToFile(const string& testDirName, S
     }
     fout.close();
 }
-
-/*! It reads data from sequential vector and then convert into full parallel service chain by detecting whether two function can be parallelised or not.\n
- * each block denote fully parallel VNFs in that step.
- * @param SFC ServiceFunctionChain object to convert sequential into parallel.
- * @param VNFNetwork object of VirtualNetworkFunctions class required to check two vnf are parallelizable or not.
- */
-template<typename type_res=unsigned int>
-void convertSeqSFC_to_FullParallelSFC(ServiceFunctionChain* SFC, VirtualNetworkFunctions<type_res> *VNFNetwork){
-    size_t sz = SFC->vnfSeq.size(); // total vnfs including src and dest
-    SFC->vnfBlocksPar.push_back({SFCsrc}); // stage 0, pushing src node
-    for(int idx=1; idx<sz; idx++){
-        int prv_vnf = SFC->vnfSeq[idx-1], cur_vnf = SFC->vnfSeq[idx];  // Checking prv_vnf --> cur_vnf pairs
-        // NOT PARALLEL, if prv_vnf does not exist as first vnf in pair or if prv_vnf exist it is not parallel to cur_vnf, then it is not parallel pair
-        if(VNFNetwork->parallelPairs.count(prv_vnf)==0 or VNFNetwork->parallelPairs[prv_vnf].find(cur_vnf) == VNFNetwork->parallelPairs[prv_vnf].end()){
-            SFC->vnfBlocksPar.push_back({cur_vnf});// push cur_vnf as separte new stage
-        }else if(SFC->vnfBlocksPar.back().size() == 1) { //PARALLEL Pairs STG Size=1 and size of previous stg is just one, then we can directly push into that stg.
-            SFC->vnfBlocksPar.back().push_back(cur_vnf);
-        }else{ // PARALLEL Pairs and STG size > 1, from previous stg we have to check if cur_vnf is parallel to all prv_vnf in previous stage
-            bool pushInLstStg = true;
-            for(int lst_stg_vnf: SFC->vnfBlocksPar.back()){
-                if(VNFNetwork->parallelPairs.count(lst_stg_vnf)==0 or VNFNetwork->parallelPairs[lst_stg_vnf].find(cur_vnf) == VNFNetwork->parallelPairs[lst_stg_vnf].end()){
-                    pushInLstStg = false;   break;
-                }
-            }
-            if(pushInLstStg) SFC->vnfBlocksPar.back().push_back(cur_vnf);
-            else SFC->vnfBlocksPar.push_back({cur_vnf});
-        }//lst stg size>1
-    }// for idx
-}
-
-/*! generate all the feasible partial parallel SFC for the given full parallel SFC.
- * @param nVNFs is number of VNFs except src and dest in fully parallel SFC.
- * @param clusterSz for each of the cluster enumeration for size[nVNFs].
- * @param nCk n=block size and k={cluster_i[l] value i.e. l(level) index value dentoes number of function(k) to be chosen as parallel out of all functions(n) in blocks.
- * @param parSFC_Full is fully parallel SFC where each block/step denotes all the parallelizable functions in that block/step.
- * @return allPartSFCs All the Partial SFCs of the fully parallel SFC.
- * @ForExample: parSFC_Full={{1},{2,3,4,5}}, nVNFs:5 (f1,f2,f3,f4,f5).\n
- * Blk(0) = {1} only 1 parallel function, Blk(1) = {2,3,4,5} all 4 are parallel.\n
- * clusterSz[5(size=nVNFs)] = {{1, 2,1,1},{1,4},{3,1,1} ... } so on. cluster_i[l] denotes number of function parallel in that level. \n
- * where cluster_i {1, 2, 1, 1} means in level[0] only one function runs, level[2] = 2 functions run together, and level[3] and level[4] one-one function are there \n
- * {[1], [2,1,1]} is mapped to {[f1], [f2,f3,f4,f4]} such that [ 1-c combination of f1 ]-> [2-c combination of f2,f3,f4,f5] -> [1-c combination of f2,f3,f4,f5] -> [1-c combination of f2,f3,f4,f5] \n
- */
-void parVNFs_Cluster_Assignment(ServiceFunctionChain* SFC, bool showInConsole){
-    const vector<vector<int>>& parSFC_Full = SFC->vnfBlocksPar;
-    const unsigned int& nBlk = parSFC_Full.size(); ///< number of blocks of the fully parallel SFC, (including src and dst block)
-    vector<vector<vector<int>>> allPartSFCs; ///< All the Partial SFCs of the fully parallel SFC.
-//    const vector<vector<unsigned int>> SK = { {1,  2,1,1},{1, 2,2}, {1,4}, {2,2,1}, {3,1,1} };
-
-    /// lambda backtrack function to find all partial sfc corresponding to cluster_i and parSFC_Full.
-    std::function<void(unsigned int,vector<vector<int>>&,unordered_map<unsigned int,vector<unsigned int>>&, unsigned int&)> findAllPartSFC_Backtrack=[&findAllPartSFC_Backtrack, &allPartSFCs, &parSFC_Full]
-            (unsigned int cur_level_idx, vector<vector<int>>&partSFC, unordered_map<unsigned int,vector<unsigned int>>& levelInfo, unsigned int& mask) ->void
-    {
-        // if current level is equal to total level in cluster/SFC.
-        if(cur_level_idx == levelInfo.size()) {
-            allPartSFCs.push_back(partSFC);
-            return;
-        };
-
-        unsigned int blkid = levelInfo[cur_level_idx][0], nl = levelInfo[cur_level_idx][1], kl= levelInfo[cur_level_idx][2];
-        for(const vector<unsigned int>& curCombination: nCk[nl][kl]){ //n=4,k=1 {{1}, {2}, {3}, {4}} } | k=2 {{1,2},{1,3},{1,4},{2,3},{2,4},{3,4}} }
-            bool thisCombinationCanBeVisited = true;
-
-            vector<int> curBlkFunc; //< if we can visit this combination then this vector will be current blk
-            unsigned int localMask=0;
-            for(const unsigned int& idx: curCombination){ // check if the curCombination idx{2,3} mapped to block func {fw (id 1-1), fx (id 2-1), fy (id 3-1)} --> fx, fy can be visited or its node already visited.
-                int fn_id = parSFC_Full[blkid][idx-1];
-                if((mask & (1<<fn_id)) != 0){ thisCombinationCanBeVisited=false; break; }
-                curBlkFunc.push_back(fn_id);
-                localMask |= (1<<fn_id);
-            }
-            if(thisCombinationCanBeVisited){
-                mask |= localMask;
-                partSFC.push_back(std::move(curBlkFunc));
-                findAllPartSFC_Backtrack(cur_level_idx+1, partSFC, levelInfo, mask);
-                mask ^= localMask;
-                partSFC.pop_back();
-            }
-        }
-    };
-
-
-    if(showInConsole){
-        SFC->showSFC_BlockWise(SFCpar);
-    }
-    for(const vector<unsigned int>& cluster: clusterSz[SFC->numVNF]){ //
-        if(cluster[0] > parSFC_Full[1].size()) // if in first block(after src blk) 2 function is there, but cluster saying 3 needs to be parallel then continue next cluster.
-            continue;
-
-        unsigned int cur_level=0; ///< current level at which we have to insert all the nodes
-        unordered_map<unsigned int,vector<unsigned int>> levelInfo;///< this stores level wise info {level i -> {0 -> blkId, 1->n, 2-> k}} to find nCk for block blkId of parSFC_Full
-
-
-        if(showInConsole){
-            cout<<"\ncluster["; for(const auto& x: cluster) cout<<x<<" "; cout<<"]";
-        }
-        bool allBlksOfSFCDone = true;
-        // iterate through the blocks (except src (1) and dst(nBlk-1) and map it to cur cluster.
-        for(unsigned int blk_id=1; blk_id<nBlk-1; blk_id++){
-            const unsigned int& curBlk_size = parSFC_Full[blk_id].size();  ///< current block size, that is num of VNFs present in it.
-
-            /*!
-             * It checks whether cluster_i is a feasible vector size and we can find same number of parallel VNFs specified by the cluster. cluster_i[l] number of func can run in parallel. \n
-             * If we cannot find the same number of parallel VNFs specified by cluster_i, then it is not feasible. e.g. [2,2] is not feasible for {f1,f2,f3} block. \n
-             * feasible [1, 2,1,1] and {{f1},{f2,f3,f4,f5}} where [1] is mapped to {f1} and  entire [2+1+1] is mapped to {f2,f3,f4,f5}
-             */
-            bool foundMapping=false; int delta=0; //< delta is range of level [endLevel-curLevel] upto which we can parallelize current block.
-            for(unsigned int li=cur_level, sum_s=0; li<cluster.size() and sum_s < curBlk_size; li++){
-                sum_s += cluster[li]; delta++;
-                if(sum_s == curBlk_size){
-                    foundMapping = true; break;
-                }
-            }
-            if(!foundMapping) {
-                if(showInConsole){ cout<<"\tNot feasible for block{"; for(const auto& x: parSFC_Full[blk_id]) cout<<"f"<<x<<","; cout<<"}";}
-                allBlksOfSFCDone = false; // break lag gya isliye dfs call mt krna
-                break;
-            }
-
-            for(unsigned int li=cur_level; li<cur_level+delta; li++){
-                if(showInConsole){
-                    cout<<"\n\tL["<<li+1<<"]: \t";
-                    for(const auto& allComb: nCk[curBlk_size][cluster[li]]) {
-                        cout<<"{"; for(auto node: allComb) cout<<"f"<<parSFC_Full[blk_id][node-1]<<",";  cout<<"}";
-                    }
-                }
-                levelInfo[li] = {blk_id, curBlk_size, cluster[li]};
-            }
-            cur_level = cur_level+delta;
-        }
-        if(allBlksOfSFCDone) // if there are some node
-        {
-            unordered_map<int,bool> visited; vector<vector<int>>partSFC; unsigned int mask=0;
-            findAllPartSFC_Backtrack(0, partSFC, levelInfo, mask);
-//            cout<<"dfs called.";
-        }
-    }
-
-    if(showInConsole){
-        cout<<"\nTotal PartSFC:"<<allPartSFCs.size();
-        for(int idx=0; idx<allPartSFCs.size(); idx++){
-            const auto& PCs = allPartSFCs[idx];
-            cout<<"\nPC["<<idx+1<<"] ( "; unordered_map<int,int> freq;
-            for(const auto& blks: PCs){
-                cout<<"["; for(auto fn_id: blks){
-                    cout<<"f"<<fn_id<<" ";
-                    if(++freq[fn_id]>1)  throw runtime_error("Error in calculation of allPartSFC. Some fn_id repeated");
-                } cout<<"]";
-            } cout<<")";
-        }
-    }
-
-}
-
 #endif //SFC_PARALLELIZATION_ALGORITHMS_H
