@@ -76,11 +76,11 @@ void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **
     /// if successfully read number of nodes and edges of graph
     if(fin>>iG_nNodes>>iG_nEdges and iG_nNodes){
         *graph = new PhysicalGraph<type_wgt, type_res>(iG_nNodes,iG_nEdges);
-        string readNode_name; int readNode_idx; unsigned int readNodeCap_cores;
+        string readNode_name; unsigned int readNode_idx, readNodeCap_cores;
         type_res readNode_memory, readNode_disk, readNode_cpuspeed;
         unsigned int readEdge_u, readEdge_v;
         type_wgt readEdge_wgt;
-        for(int ni=1; ni<=iG_nNodes; ni++) /// For each node there is a row which would be read
+        for(unsigned int ni=1; ni<=iG_nNodes; ni++) /// For each node there is a row which would be read
         {
             fin.ignore();
             getline(fin, readNode_name);
@@ -136,8 +136,7 @@ void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **
     unsigned int i_nVM; // input num of VMs
     if(fin>>i_nVM){
         *ptr = new VirtualMachines<type_res>(i_nVM);
-        string readVM_name; int readVM_idx;
-        unsigned int readVM_Cap_cores, readVM_Req_cores;
+        string readVM_name;   unsigned int readVM_idx, readVM_Cap_cores, readVM_Req_cores;
         type_res readVM_Cap_memory, readVM_Cap_disk, readVM_Cap_cpuspeed, readVM_Req_memory, readVM_Req_disk, readVM_Req_cpuspeed;
         for(int ni=1; ni<=i_nVM; ni++) /// For each node there is a row which would be read
         {
@@ -185,7 +184,7 @@ void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFuncti
     unsigned int i_nVNF; // input num of VNFs
     if(fin>>i_nVNF){
         *ptr = new VirtualNetworkFunctions<type_res>(i_nVNF);
-        string readVNF_name; int readVNF_idx, readVNFInst; float readVNF_serviceR,readVNF_execTime ; unsigned int readVNF_Req_cores;
+        string readVNF_name; unsigned int readVNF_idx, readVNFInst; float readVNF_serviceR,readVNF_execTime ; unsigned int readVNF_Req_cores;
         type_res readVNF_Req_memory, readVNF_Req_disk, readVNF_Req_cpuspeed;
         for(int ni=1; ni<=i_nVNF; ni++) /// For each node there is a row which would be read
         {
@@ -232,7 +231,7 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
     unsigned int i_nSFC; ///< input num of SFCs
     if(fin>>i_nSFC){
         allSFC = vector<ServiceFunctionChain*>(i_nSFC+1);
-        string readSFC_name; int readSFC_idx, readSFC_totalVNF; float readSFC_arrivalRate ;    int vnfid;
+        string readSFC_name; unsigned int readSFC_idx, readSFC_totalVNF; float readSFC_arrivalRate ;    int vnfid;
         for(int ni=1; ni<=i_nSFC; ni++) ///< For each node there is a row which would be read
         {
             fin.ignore();
@@ -245,8 +244,8 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
                 if(fin>>vnfid) {
 //                    allSFC[ni]->sAdj[allSFC[ni]->vnfSeq.back()].push_back(vnfid); //< srcVNFid = SFC->vnfSeq.back(), dstVNFid = vnfid (cur), it should be before inserting into vnfseq
                     allSFC[ni]->vnfSeq.push_back(vnfid);
-                    allSFC[ni]->isVNF_Present[vnfid]= true;
-                    allSFC[ni]->I_VNFType2Inst[vnfid] = 1; ///< initially vnf are mapped to their first instance
+//                    allSFC[ni]->isVNF_Present[vnfid]= true;
+                    allSFC[ni]->I_VNFType2Inst[vnfid] = 0; ///< initially no vnfs are mapped
                 }
                 else cerr << "\t VNF for SFCs Data Reading Failed: SFC Row["<<ni<<"]. VNFid["<<vnfid<<"]\n";
 //            allSFC[ni]->sAdj[allSFC[ni]->vnfSeq.back()].push_back(SFCdst);

@@ -12,15 +12,15 @@ template <class type_res =unsigned int>
 class VNFNode
 {
 public:
-    int index{}  /*! physical node index. Type int.*/;  string name /*! node name  */;
+    unsigned int index  /*! physical node index. Type int.*/;  string name /*! node name  */;
     unsigned int numInstances{}; ///< number of instances of vnf.
     float serviceRate{}; ///< rate of service of vnf. in packets per second. arrival rate < service rate.
     float executionTime{}; ///< time taken to execute the particular function
     NodeCapacity<type_res> requirement; ///<  requirements  of the VM node. Type NodeCapacity.
 
-    unordered_map<unsigned int,pair<int,int>> inst2nw; ///< collecting information for each VNF node that what are its instances and where are they hosted {vmid, pnid} {vnf ke instance id (1-based) --> {VM_id, PN_id};
+    unordered_map<unsigned int,pair<unsigned int,unsigned int>> inst2nw; ///< collecting information for each VNF node that what are its instances and where are they hosted {vmid, pnid} {vnf ke instance id (1-based) --> {VM_id, PN_id};
 
-    VNFNode(int _index, const string& _name, int _instance, float _serviceRate, float _execTime, NodeCapacity<type_res> _givenRequirements): requirement(_givenRequirements){
+    VNFNode(unsigned int _index, const string& _name,unsigned int _instance, float _serviceRate, float _execTime, NodeCapacity<type_res> _givenRequirements): requirement(_givenRequirements){
         this->index = _index; this->name = _name; this->numInstances = _instance;
         this->serviceRate = _serviceRate; this->executionTime = _execTime;
     }
@@ -38,15 +38,15 @@ class VirtualNetworkFunctions
     unsigned int numVNF{}  /*!<  number of unique type of VNFs  */; unsigned int srcVNF /*!< starting VNF to iterate the loop*/;
 public:
     unordered_map<unsigned int, VNFNode<type_res>*> VNFNode; ///<Index to VNF structure
-    unordered_map<int,unordered_set<int>> parallelPairs; ///< {i_vnfid ->{j_vnfid it is parallel to}} pairs identifying which are parallel
+    unordered_map<unsigned int,unordered_set<unsigned int>> parallelPairs; ///< {i_vnfid ->{j_vnfid it is parallel to}} pairs identifying which are parallel
 
-    vector<vector<int>> I_VNFinst2VM; ///< VNF {type,inst} is hosted on which VM. {VNFid -> {instid -> VM id}} ie. arr[vnf][inst]=vmid;, inst->1based indexing
+    unordered_map<unsigned int, unordered_map<unsigned int, unsigned int>> I_VNFinst2VM; ///< VNF {type,inst} is hosted on which VM. {VNFid -> {instid -> VM id}} ie. arr[vnf][inst]=vmid;, inst->1based indexing
     /*! @param _numVirtualNetworkFunctions number of VNFs */
     explicit VirtualNetworkFunctions(unsigned int _numVirtualNetworkFunctions)
     {
         srcVNF = 1;
         this->numVNF = _numVirtualNetworkFunctions;
-        I_VNFinst2VM = vector<vector<int>>(numVNF + 1);
+//        I_VNFinst2VM = vector<vector<unsigned int>>(numVNF + 1);
     }
     ~VirtualNetworkFunctions()
     {
@@ -119,8 +119,8 @@ void VirtualNetworkFunctions<type_res>::findRandomParallelPairs(const string& te
          {9,{1,3,7,10}},
          {10,{3,6,9}}};
          if(debug)cout<<"\n\t[Random Parallel Pairs: "<<numParallelPairs<<" | "<<(100.0*numParallelPairs/(numVNF*(numVNF-1)))<<" % out of Total:"<<numVNF*(numVNF-1)<<" pairs]";
-         return;
      }
+     return;
 
      ofstream fout;
      string filepathExt = output_directory+testDirName+filename_vnf_parallelpairs;///< path to .gv file without extention

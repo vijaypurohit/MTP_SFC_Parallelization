@@ -60,7 +60,6 @@ unsigned int  speedOfLight = 300000000;
 unsigned int total_SFC = 0;
 float read_write_time_per_bit = 0.077e-3;
 
-
 #include "PhysicalGraph.h" // graph structure for physical network, physical node and edge and node capacity
 #include "VirtualMachines.h" //  structure for virtual machines, virtual node
 #include "VirtualNetworkFunctions.h" // structure for VNFnode, VNF,
@@ -70,67 +69,29 @@ float read_write_time_per_bit = 0.077e-3;
 #include "AssignmentFunctions.h"
 #include "Algorithms.h"
 
-
-
-//void dfs_dfs(int levelIdx, unordered_map<int,bool> visited, vector<vector<int>>blks, unordered_map<int,vector<vector<int>>>& levelNodes, vector<vector<vector<int>>>& allPCs){
-//    if(levelIdx == levelNodes.size()) {
-//        allPCs.push_back(blks);
-//        return;
-//    };
-//    for(const auto& allComb: levelNodes[levelIdx]){
-//        bool canBeVisited = true;
-//        for(auto node: allComb){
-//            if(visited[node]){
-//                canBeVisited=false;
-//                break;
-//            }
-//        }
-//        if(canBeVisited){
-//            for(auto node: allComb)visited[node]=true;
-//            blks.push_back(allComb);
-//            dfs_dfs(levelIdx+1, visited,blks, levelNodes, allPCs);
-//            for(auto node: allComb)visited[node]=false;
-//            blks.pop_back();
-//        }
-//    }
-//
-//}
 /*!
 * @tparam type_wgt edge weight data type. default=unsigned int.
 * @tparam type_res resource data type. default=unsigned int.
+ * For example:  partParSFC = { {1}, {6,4}, {5} }  \n
+ * stg 0 (1 function has 3 instances),     B[0] = 2d{  1d[ pair<1a> ] [<1b>] [<1c>]  } \n
+ * stg 1 (2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] } \n
+ * stg 2 (1 function 2 instances),         B[2] = 2d{ 1d[5a] [5b] [5c] } \n
+ *
 */
 template<typename type_wgt=unsigned int, typename type_res=unsigned int>
 void layerGraphConstruction_and_InstanceSelectionAndRouting(ServiceFunctionChain *SFC,
                                                             VirtualNetworkFunctions<type_res> *VNFNetwork,
                                                             const VirtualMachines<type_res> *VirtualNetwork,
-                                                            const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork) {
-
-
+                                                            const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork, bool showInConsole) {
 
     /*! {{1},{6,4},{5}}; Each Partial SFC is without src and dest block/stage. */
     vector<vector<unsigned int>> partParSFC = {{1},{6,4},{5}} ;
     unsigned int szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
-//    std::function<void( )> dfs = [&dfs, &partParSFC, &SFC, &VNFNetwork]
-//            (unsigned int stgid,  ) ->void{
-//        if(stgid == partParSFC.size()){ // all stages in SFC iterated..
-////            calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
-//            return;
-//        }
-//        for(const auto& curStgFnId: partParSFC[stgid]){
-//            unsigned int totInstancs = VNFNetwork->VNFNode[curStgFnId]->numInstances;
-//            for(int instid=1; instid<=totInstancs; instid++){
-//                curInstComb.emplace_back(curStg[bi], instid); // push current instance
-//                dfs(bi+1, curInstComb, stgid, curStg); // call function for next instance
-//                curInstComb.pop_back(); // pop curInstComb instance and push next instance of same function.
-//            }
-//        }
-//    };
-
     /*! level to Instances Combinations = set of instance combination in block/stage/level index j. partParSFC = {{1},{6,4},{5}}  \n
-     * stg 0 (1 function has 3 instances), B[0] = 2d{  1d[<1a>] [<1b>] [<1c>]  }\n
+     * stg 0 (1 function has 3 instances), B[0] = 2d{  1d[ pair<1a> ] [<1b>] [<1c>]  }\n
      * stg 1(2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] }\n
-     * stg 2(1 function 2 instances), B[2] = {[5a] [5b] [5c}\n
+     * stg 2(1 function 2 instances), B[2] = {[5a] [5b] [5c]}\n
      * Time to calculte stg2InstCombinations -> if in any block number of parallel functions are 10 and each have\n
         inst = 2 (exe time: 1-2ms) (possibilites: 1024 (2^10)) \n
         inst = 3 (exe time: 38-40ms) (possibilites: 59049 (3^10))\n
@@ -139,9 +100,9 @@ void layerGraphConstruction_and_InstanceSelectionAndRouting(ServiceFunctionChain
      */
     unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> > stg2InstCombinations;
     std::function<void(unsigned int, vector<pair<unsigned int,unsigned int>>&, unsigned int&, const vector<unsigned int>&)> findBofGivenBlk = [&findBofGivenBlk, &stg2InstCombinations, &VNFNetwork]
-            (unsigned int bi, vector<pair<unsigned int,unsigned int>>& curInstComb, unsigned int& stgid, const vector<unsigned int>& curStg) ->void{
+            (unsigned int bi, vector<pair<unsigned int,unsigned int>>& curInstComb, unsigned int& stgid, const vector<unsigned int>& curStg)->void{
         if(bi == curStg.size()){ // all functions in stage iterated.
-            stg2InstCombinations[stgid].push_back(curInstComb); // push the one ans into combination stg.
+            stg2InstCombinations[stgid].push_back(curInstComb); // push the one answer into combination stg.
             return;
         }
         unsigned int totInstancs = VNFNetwork->VNFNode[curStg[bi]]->numInstances;
@@ -158,43 +119,68 @@ void layerGraphConstruction_and_InstanceSelectionAndRouting(ServiceFunctionChain
         if(curStg.size() == 1){ // only one function in the block, then insert all its instance as combination
             for(int instid=1; instid<=VNFNetwork->VNFNode[curStg[0]]->numInstances; instid++)
                 stg2InstCombinations[stgid].push_back({{curStg[0], instid}});
-        }
-        else{
+        } else{
             vector<pair<unsigned int,unsigned int>> curInstComb;
             findBofGivenBlk(0, curInstComb, stgid, curStg);
         }
 
     }
 
-    for(const auto& x: stg2InstCombinations){
-        cout<<"\nSTG["<<x.first<<"]("<<x.second.size()<<") { ";
-        for(const auto& y: x.second){
-            cout<<"[";
-            for(const auto& z: y){
-                cout<<""<<z.first<<char(z.second-1+'a')<<" ";
-            }
-            cout<<"]";
-        }
-        cout<<" }";
-    }
-
-//    struct layerGraphNode{
-//        pair<unsigned int,unsigned int> lev2InstCombId;
-//    };
-//
-//    unordered_map<int,vector<layerGraphNode>> lgAdj;
-//    unsigned int stg_nxt_idx = 1;
-//    /*!
-//     * stg 0 (1 function has 3 instances), B[0] = 2d{  1d[<1a>] [<1b>] [<1c>]  }\n
-//     * stg 1 (2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] }\n
-//     * stg 2 (1 function 2 instances), B[2] = {[5a] [5b] [5c}\n
-//     */
-//    for (const vector<pair<unsigned int,unsigned int>> &stgNxtComb: stg2InstCombinations[stg_nxt_idx]){  //int vnf_dst_inst_idx =0, vm_dst_idx=0,pn_dst_idx =vnf_dst_idx;
-//         for(const auto& curComb: stgNxtComb){
-//
-//
-//         }
+//    for(const auto& x: stg2InstCombinations){
+//        cout<<"\nSTG["<<x.first<<"]("<<x.second.size()<<") { ";
+//        for(const auto& y: x.second){
+//            cout<<"[";
+//            for(const auto& z: y){
+//                cout<<""<<z.first<<char(z.second-1+'a')<<" ";
+//            }
+//            cout<<"]";
+//        }
+//        cout<<" }";
 //    }
+
+//    std::function<void()> instancesSelection =[&instancesSelection, &partParSFC, &stg2InstCombinations](unsigned int stgid, unordered_map<unsigned int, int>& curVNFType2Inst)->void{
+//        if(stgid == partParSFC.size())
+//        {
+//            return;
+//        }
+//
+//        for(const auto& instComb: stg2InstCombinations[stgid]){
+//            for(const auto& [fnType, fnInstId]: instComb){
+//                curVNFType2Inst[fnType]=fnType;
+//            }
+//        }
+//
+//    };
+
+    struct layerGraphNode{
+        pair<unsigned int,unsigned int> lev2InstCombId;
+        int time=0;
+        layerGraphNode(int _updTime, pair<unsigned int,unsigned int> _givenInstComb){
+            this->time = _updTime;
+            this->lev2InstCombId = _givenInstComb;
+        };
+    };
+    layerGraphNode srcNode(0,{0,0});
+    unordered_map<int,vector<layerGraphNode>> lgAdj;
+    lgAdj[0].push_back(srcNode);
+
+    unsigned int stg_nxt_idx = 1;
+    /*!
+     * stg 0 (1 function has 3 instances), B[0] = 2d{  1d[<1a>] [<1b>] [<1c>]  }\n
+     * stg 1 (2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] }\n
+     * stg 2 (1 function 2 instances), B[2] = {[5a] [5b] [5c}\n
+     */
+
+//     for(int cur_lvl=0; cur_lvl<szStages; cur_lvl++){
+//         cout<<"\nSTG["<<cur_lvl<<"]("<<stg2InstCombinations[cur_lvl].size()<<") { ";
+//         for(const auto& instComb: stg2InstCombinations[cur_lvl]){
+//             cout<<"[";
+//             for(const auto& givenPair: instComb){
+//                 cout<<""<<givenPair.first<<char(givenPair.second-1+'a')<<" ";
+//             }
+//             cout<<"]";
+//         }
+//     }
 
 
 }
@@ -247,18 +233,19 @@ int main()
 //    SFC[1]->convertToParallelSFC({{1},{6,4},{5}});
 //    SFC[2]->convertToParallelSFC({{10},{4,8,3},{2,1},{5}});
 //    SFC[3]->convertToParallelSFC({{4,8},{7,10,9}});
-//    for(int ni=1; ni<=total_SFC; ni++) SFC[ni]->showSFC_BlockWise(SFCpar);
+//    for(int ni=1; ni<=total_SFC; ni++) SFC[ni]->showSFC_BlockWise(SFCpar, SFC[ni]->I_VNFType2Inst);
+
 
 
     /// Determination of how many instances of particular VNFs are required.
-    vector<pair<int,int>> VNF_TO_InstancesCnt = {
+    vector<pair<unsigned int,unsigned int>> VNF_TO_InstancesCnt = {
             {1, 3}, {4, 3},
             {2, 2}, {3, 2}, {5, 2}, {6, 2},  {7, 2}, {8, 2},  {9, 2}, {10, 2}
     };
     assign_VNF_2_InstancesCnt<type_res_local>(VNF_TO_InstancesCnt, VNFNetwork);
 
     /// mapping of VNF id, instance id, to VM id
-    vector<vector<int>> VNF_TO_VM = {
+    vector<vector<unsigned int>> VNF_TO_VM = {
             {1, 1, 3}, {1, 2, 1}, {1, 3, 12},
             {2, 1, 4}, {2, 2, 2},
             {3, 1, 1}, {3, 2, 7},
@@ -292,10 +279,10 @@ int main()
     assign_ForSFC_VNFType_2_InstID(VNFType_TO_InstID[2], SFC[2]);
     assign_ForSFC_VNFType_2_InstID(VNFType_TO_InstID[3], SFC[3]);
 
-//    auto ft_start = std::chrono::steady_clock::now();
-////    parVNFBlocks_ClusterAssignment_ForSFC(SFC[1]);
-//    layerGraphConstruction_and_InstanceSelectionAndRouting(SFC[1], VNFNetwork, VirtualNetwork, PhysicalNetwork, true);
-//    if(debug)cout<<"\nTime:"<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
+    auto ft_start = std::chrono::steady_clock::now();
+//    parVNFBlocks_ClusterAssignment_ForSFC(SFC[1]);
+    layerGraphConstruction_and_InstanceSelectionAndRouting(SFC[1], VNFNetwork, VirtualNetwork, PhysicalNetwork, true);
+    if(debug)cout<<"\nTime:"<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
 
 //    PhysicalNetwork->showPNs_Description();
 //    VirtualNetwork->showVMs_Description();
@@ -315,14 +302,14 @@ int main()
 //        }
 ////        cout<<" }";
 //    }
-    debug=0;
-    for(int ni=1; ni<=total_SFC; ni++){
-        cout<<"\nSFC["<<ni<<"] E2E: ";
-        cout<<"Seq["<<calcObjectiveValueSeq<type_wgt_local, type_res_local>(SFC[ni], SFC[ni]->I_VNFType2Inst, SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
-        cout<<"Par["<<calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar,SFC[ni]->I_VNFType2Inst,  SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
-        cout<<"Pkt["<<calcTime_PacketsDelay<type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni]->I_VNFType2Inst, SFC[ni], VNFNetwork, VirtualNetwork)<<"]";
-    }
-    debug=1;
+//    debug=0;
+//    for(int ni=1; ni<=total_SFC; ni++){
+//        cout<<"\nSFC["<<ni<<"] E2E: ";
+//        cout<<"Seq["<<calcObjectiveValueSeq<type_wgt_local, type_res_local>(SFC[ni], SFC[ni]->I_VNFType2Inst, SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
+//        cout<<"Par["<<calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar,SFC[ni]->I_VNFType2Inst,  SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
+//        cout<<"Pkt["<<calcTime_PacketsDelay<type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni]->I_VNFType2Inst, SFC[ni], VNFNetwork, VirtualNetwork)<<"]";
+//    }
+//    debug=1;
 
 
 

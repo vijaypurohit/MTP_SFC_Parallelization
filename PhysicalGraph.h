@@ -33,17 +33,17 @@ template <class type_res =unsigned int>
 class PhysicalNode{
 public:
     /// \brief physical node index. Type int.
-    int index{}; string name; ///< physical node name
+    unsigned int index{}; string name; ///< physical node name
     NodeCapacity<type_res> capacity; /*!< capacity of the node. Type NodeCapacity. */
-    vector<int> virtualMachines; /*!< list of VM index present in the physical machine. */
+    unordered_set<unsigned int> pn2VMs; /*!< list of VM index present in the physical machine. */
     /*!
      * @param _index physical node index (int)
      * @param _name node name
      * @param _givenCapacity capacity of the node
      */
-    PhysicalNode(int _index, const string& _name, NodeCapacity<type_res> _givenCapacity): capacity(_givenCapacity){
-        this->index = _index;
-        this->name = _name;
+    PhysicalNode(unsigned int& _index, const string& _name, NodeCapacity<type_res> _givenCapacity): capacity(_givenCapacity){
+        this->index = std::move(_index);
+        this->name = std::move(_name);
     }
     ~PhysicalNode() = default;
 };
@@ -55,7 +55,7 @@ template <class type_wgt = unsigned int>
 struct PhysicalEdge
 {
     /*! @param u edge source physical node index,  @param v edge destination physical node index  */
-    unsigned int u{}, v{};   type_wgt wt;///<edge(u,v) weight
+    unsigned int u, v;   type_wgt wt;///<edge(u,v) weight
     /*! Physical Edge Constructor
      * @param  _source soruce node
      * @param _destination destination node
@@ -93,9 +93,7 @@ public:
      * @param _sourceVertex default 1, loop from 1 to <= numVertexes
      */
     PhysicalGraph(unsigned int _numVertexes, unsigned int _numEdges, unsigned int _sourceVertex = 1) {
-        srcV = _sourceVertex;
-        numV = _numVertexes;
-        numE = _numEdges;
+        srcV = _sourceVertex; numV = _numVertexes; numE = _numEdges;
         adj = new vector<PhysicalEdge<type_wgt> *>[numV + 1];
         mat = vector<vector<type_wgt>>(numV + 1, vector<type_wgt>(numV + 1, 0));
         dist = vector<vector<type_wgt>>(numV + 1, vector<type_wgt>(numV + 1, 0));
@@ -171,13 +169,13 @@ template <class type_wgt, class type_res>
 template <class type_wgt, class type_res>
 [[maybe_unused]] void PhysicalGraph<type_wgt,type_res>::showPNs_Description(){
     cout << "\n\n ----- Nodes Description of G(" << numV<<", "<<numE<<") ::";
-    cout<<"\nIndex\t"<<"Name\t\t"<<" CAP[cores][memory][disk][speed]\t"<<" VirtualMachines";
-    cout<<"\n-----\t"<<"-----\t"<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
+    cout<<"\nIndex\t"<<"Name\t\t"<<" CAP[cores][memory][disk][speed]\t"<<"VirtualMachines";
+    cout<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
     for (unsigned int u = srcV; u <= numV; ++u){
         cout<<"\n"<<PNode[u]->index<<" |\t";
         cout<<PNode[u]->name<<" |\t";
         cout<<PNode[u]->capacity.cores<<"\t"<<PNode[u]->capacity.memory<<"\t"<<PNode[u]->capacity.disk<<"\t"<<PNode[u]->capacity.cpuSpeed<<"\t";
-        for(const auto& vmid: PNode[u]->virtualMachines)
+        for(const unsigned int& vmid: PNode[u]->pn2VMs)
             cout<<"VM["<<vmid<<"] ";
     }
 }

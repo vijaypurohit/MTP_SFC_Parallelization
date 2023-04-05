@@ -8,14 +8,19 @@
 class ServiceFunctionChain
 {
 public:
-    int index /*!< SFC index */; string name;  /*!< SFC name */ unsigned int numVNF;  /*!< number of VNFs except source and dest node */
+    unsigned int index /*!< SFC index */; string name;  /*!< SFC name */ unsigned int numVNF;  /*!< number of VNFs except source and dest node */
     float trafficArrivalRate;  /*!< traffic arrival rate of SFC s. in packets per second. arrival rate < service rate. */
     vector<int> vnfSeq; ///< vnfids in sequential manner including src (SFCsrc=0) and dest (SFCdst=-10).
-    unordered_map<unsigned int, bool> isVNF_Present;  /*!< given VNF index check, if it in SFC or not. {vnfid, true/false}. used in calcualtion of queuing delay */
     vector<vector<unsigned int>> vnfBlocksPar; ///< vnfids in stage wise, where stg i denotes parallel vnf in ith stage. Exvept src and dest stg.
+    /*!
+     * for final par SFC, VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}. \n
+     * value zero means not mapped. \n
+     * initially mapped to value 1 at time of reading.
+    */
+    unordered_map<unsigned int, unsigned int> I_VNFType2Inst;
 
-    unordered_map<unsigned int, int> I_VNFType2Inst; ///< for final par SFC, VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
 
+//    unordered_map<unsigned int, bool> isVNF_Present;  /*!< given VNF index check, if it in SFC or not. {vnfid, true/false}. used in calcualtion of queuing delay */
     unordered_map<int, vector<int>> sAdj, pAdj;  /*!<  serial adjaceny list. parallel adjaceny list. */
     unordered_map<int, float> distanceSeq, distancePar; ///<stores longest distance to each node
     unordered_map<unsigned int, unordered_map<int, float>> pktDist;
@@ -24,7 +29,7 @@ public:
      * @param _numVNF number of VNFs except source and dest node
      * @param _trafficRate traffic arrival rate of SFC s
      */
-    ServiceFunctionChain(int _index, const string& _name, unsigned int _numVNF, float _trafficArrivalRate){
+    ServiceFunctionChain(unsigned int _index, const string& _name, unsigned int _numVNF, float _trafficArrivalRate){
         this->index = _index; this->name = _name;  this->numVNF = _numVNF;
         this->trafficArrivalRate = _trafficArrivalRate;
     }
@@ -47,7 +52,7 @@ public:
 
     [[maybe_unused]] void printOrigSFC(int, const string&);
 
-    void showSFC_BlockWise(int);
+    void showSFC_BlockWise(int, const unordered_map<unsigned int, unsigned int>&);
 };
 
 /*!
@@ -55,20 +60,20 @@ public:
  * If instances are not mapped then first instance is considered.
  * @param type SFC type (Serial or parallel)
  */
-void ServiceFunctionChain::showSFC_BlockWise(const int type) {
+ void ServiceFunctionChain::showSFC_BlockWise(const int type, const unordered_map<unsigned int, unsigned int>& VNFType2Inst){
     if(type == SFCseq){
         cout << "\nSeq SFC:["<<name<<"],nVNF["<< numVNF<<"]::\t";
         for(const int& vnfid : vnfSeq){
             if(vnfid == SFCsrc) cout << "(SRC -> ";
             else if(vnfid == SFCdst) cout << " DST)";
-            else cout <<"f"<< vnfid <<char(96+I_VNFType2Inst[vnfid])<< "; -> ";
+            else cout <<"f"<< vnfid <<char(96+VNFType2Inst.at(vnfid))<< "; -> ";
         }
     }
     else if(type == SFCpar){
         cout << "\nParallel SFC:["<<name<<"],nVNF["<< numVNF<<"]::\t";
         for(size_t i=0; i<vnfBlocksPar.size(); i++){
             if(i==0) cout << "(SRC -> ";
-            cout<<"[ "; for(int vnfid: vnfBlocksPar[i]) cout<<"f"<<vnfid<<char(96+I_VNFType2Inst[vnfid])<<"; ";
+            cout<<"[ "; for(int vnfid: vnfBlocksPar[i]) cout<<"f"<<vnfid<<char(96+VNFType2Inst.at(vnfid))<<"; ";
             cout<<"] ->";
             if(i==vnfBlocksPar.size()-1)  cout << " DST)";
         }
@@ -279,7 +284,8 @@ void ServiceFunctionChain::addAllDirectedEdgesToAdj(const vector<pair<int, int>>
     unordered_map<int, vector<int>>& adj = sAdj;
     for(const auto& edge: allEdges){
         adj[edge.first].push_back(edge.second);
-        isVNF_Present[edge.second]= true;
+//        isVNF_Present[edge.second]= true;
+        I_VNFType2Inst[edge.second]= 0;
     }
     vnfSeq.push_back(SFCsrc);
     queue<int> q; q.push(SFCsrc);

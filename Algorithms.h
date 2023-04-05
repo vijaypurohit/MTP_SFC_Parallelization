@@ -460,7 +460,7 @@ void parVNFBlocks_ClusterAssignment_ForSFC(ServiceFunctionChain* SFC, bool showI
 
 
     if(showInConsole){
-        SFC->showSFC_BlockWise(SFCpar);
+        SFC->showSFC_BlockWise(SFCpar, SFC->I_VNFType2Inst);
     }
     for(const vector<unsigned int>& cluster: clusterSz[SFC->numVNF]){ //
         if(cluster[0] > fullParVNFBlocks[1].size()) // if in first block(after src blk) 2 function is there, but cluster saying 3 needs to be parallel then continue next cluster.
@@ -474,7 +474,7 @@ void parVNFBlocks_ClusterAssignment_ForSFC(ServiceFunctionChain* SFC, bool showI
             cout<<"\ncluster["; for(const auto& x: cluster) cout<<x<<" "; cout<<"]";
         }
         bool allBlksOfSFCDone = true;
-        // iterate through the blocks (except src (1) and dst(nBlk-1) and map it to cur cluster.
+        // iterate through the blocks except src (1) and dst(nBlk-1) and map it to cur cluster.
         for(unsigned int blk_id=1; blk_id<nBlk-1; blk_id++){
             const unsigned int& curBlk_size = fullParVNFBlocks[blk_id].size();  ///< current block size, that is num of VNFs present in it.
 
