@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <filesystem>
+//#include <execution>
 //#include <limits> // numeric_limits
 //#include <chrono>       //to seed random number
 #include <random> //to generate random number
@@ -79,108 +80,182 @@ float read_write_time_per_bit = 0.077e-3;
  *
 */
 template<typename type_wgt=unsigned int, typename type_res=unsigned int>
-void layerGraphConstruction_and_InstanceSelectionAndRouting(ServiceFunctionChain *SFC,
+void layerGraphConstruction_and_InstanceSelectionAndRouting(ServiceFunctionChain *cSFC, vector<ServiceFunctionChain*> allSFC,
                                                             VirtualNetworkFunctions<type_res> *VNFNetwork,
                                                             const VirtualMachines<type_res> *VirtualNetwork,
-                                                            const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork, bool showInConsole) {
+                                                            const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork, bool showInConsole = false, bool showInConsoleDetailed = false) {
 
-    /*! {{1},{6,4},{5}}; Each Partial SFC is without src and dest block/stage. */
-    vector<vector<unsigned int>> partParSFC = {{1},{6,4},{5}} ;
-    unsigned int szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
-
-    /*! level to Instances Combinations = set of instance combination in block/stage/level index j. partParSFC = {{1},{6,4},{5}}  \n
-     * stg 0 (1 function has 3 instances), B[0] = 2d{  1d[ pair<1a> ] [<1b>] [<1c>]  }\n
-     * stg 1(2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] }\n
-     * stg 2(1 function 2 instances), B[2] = {[5a] [5b] [5c]}\n
-     * Time to calculte stg2InstCombinations -> if in any block number of parallel functions are 10 and each have\n
+    /*! Lambda function to find all instances combination of parVNF in that stage.
+     * @param csfi current stage function index.
+     * @param curInstComb current combination in iteration
+     * @param stgid stgId/blockId for which we are finding combination of functions in that stg/block and to store in stg2InstCombinations.
+     * @param curStg using to iterate all functions in the stage.
+     * @param stg2InstCombinations It stores all the stage wise instances combination of all stage in partParSFC. {stgid -> 2d{ 1d instances combinations{pair<fun, inst>}  }}
+     * For example:  partParSFC = { {1}, {6,4}, {5} }  \n
+     * stg 0 (1 function has 3 instances),     B[0] = 2d{  1d[ pair<1a> ] [<1b>] [<1c>]  } \n
+     * stg 1 (2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] } \n
+     * stg 2 (1 function 2 instances),         B[2] = 2d{ 1d[5a] [5b] [5c] } \n
+     * Time to calculte stg2InstCombinations -> if in any block number of parallel functions are 10 and each have 5 max instances\n
         inst = 2 (exe time: 1-2ms) (possibilites: 1024 (2^10)) \n
-        inst = 3 (exe time: 38-40ms) (possibilites: 59049 (3^10))\n
-        inst = 4 (exe time: 580-600ms) (possibilites: 10 48576 )\n
-        inst = 5 (exe time: 5700-5800ms) (possibilites: 197 65625)\n
+        inst = 3 (exe time: 38-40ms) (possibilites: 59 049 (3^10))\n
+        inst = 4 (exe time: 580-600ms) (possibilites: 10 48 576 )\n
+        inst = 5 (exe time: 5700-5800ms) (possibilites: 97 65 625)\
      */
-    unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> > stg2InstCombinations;
-    std::function<void(unsigned int, vector<pair<unsigned int,unsigned int>>&, unsigned int&, const vector<unsigned int>&)> findBofGivenBlk = [&findBofGivenBlk, &stg2InstCombinations, &VNFNetwork]
-            (unsigned int bi, vector<pair<unsigned int,unsigned int>>& curInstComb, unsigned int& stgid, const vector<unsigned int>& curStg)->void{
-        if(bi == curStg.size()){ // all functions in stage iterated.
-            stg2InstCombinations[stgid].push_back(curInstComb); // push the one answer into combination stg.
-            return;
-        }
-        unsigned int totInstancs = VNFNetwork->VNFNode[curStg[bi]]->numInstances;
-        for(int instid=1; instid<=totInstancs; instid++){
-            curInstComb.emplace_back(curStg[bi], instid); // push current instance
-            findBofGivenBlk(bi+1, curInstComb, stgid, curStg); // call function for next instance
-            curInstComb.pop_back(); // pop curInstComb instance and push next instance of same function.
-        }
+    std::function<void(unsigned int, vector<pair<unsigned int,unsigned int>>&, unsigned int&, const vector<unsigned int>&, unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>>>&)>
+            find_stg2IC_ofGivenBlk = [&find_stg2IC_ofGivenBlk, &VNFNetwork] (unsigned int csfi, vector<pair<unsigned int,unsigned int>>& curInstComb,   unsigned int& stgid,
+                    const vector<unsigned int>& curStg, unordered_map<unsigned int,  vector<vector<pair<unsigned int,unsigned int>>>> &stg2InstCombinations)->void{
+                if(csfi == curStg.size()){ // all functions in stage iterated. curStg.size()==numOfFunction in that stage.
+                    stg2InstCombinations[stgid].push_back(curInstComb); // push the one answer into combination stg.
+                    return;
+                }
+                unsigned int totInstancs = VNFNetwork->VNFNode[curStg.at(csfi)]->numInstances;
+                for(unsigned int instid=1; instid<=totInstancs; instid++){
+                    curInstComb.emplace_back(curStg.at(csfi), instid); // push current instance
+                    find_stg2IC_ofGivenBlk(csfi+1, curInstComb, stgid, curStg, stg2InstCombinations); // call function for next instance
+                    curInstComb.pop_back(); // pop curInstComb instance and push next instance of same function.
+                }
+    };
+    /*! For a given stg2InstCombinations, it enumerate all the possible mappings we can give in each stage.
+     * For example:  partParSFC = { {1}, {6,4}, {5} }  \n
+     * stg 0 (1 function has 3 instances),     B[0] = 2d{  1d[ pair<1a> ] [<1b>] [<1c>]  } \n
+     * stg 1 (2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] } \n
+     * stg 2 (1 function 2 instances),         B[2] = 2d{ 1d[5a] [5b] [5c] }
+     * allMappings are (total 36 = 3*6*2) \n
+        0[1a 6a 4a 5a ]         1[1a 6a 4a 5b ]         2[1a 6a 4b 5a ]     3[1a 6a 4b 5b ]         4[1a 6a 4c 5a ]         5[1a 6a 4c 5b ]
+        6[1a 6b 4a 5a ]         7[1a 6b 4a 5b ]         8[1a 6b 4b 5a ]     9[1a 6b 4b 5b ]         10[1a 6b 4c 5a ]        11[1a 6b 4c 5b ]
+        12[1b 6a 4a 5a ]        13[1b 6a 4a 5b ]        14[1b 6a 4b 5a ]        15[1b 6a 4b 5b ]        16[1b 6a 4c 5a ]        17[1b 6a 4c 5b ]
+        18[1b 6b 4a 5a ]        19[1b 6b 4a 5b ]        20[1b 6b 4b 5a ]        21[1b 6b 4b 5b ]        22[1b 6b 4c 5a ]        23[1b 6b 4c 5b ]
+        24[1c 6a 4a 5a ]        25[1c 6a 4a 5b ]        26[1c 6a 4b 5a ]        27[1c 6a 4b 5b ]        28[1c 6a 4c 5a ]        29[1c 6a 4c 5b ]
+        30[1c 6b 4a 5a ]        31[1c 6b 4a 5b ]        32[1c 6b 4b 5a ]
+        3[1c 6b 4b 5b ]        34[1c 6b 4c 5a ]        35[1c 6b 4c 5b ] \n
+     * 1 stage -> 10 parallel func each with 5 max instances -> 5^10 possibilities or 97,65,625 instances.
+     */
+    std::function<void(unsigned int, unordered_map<unsigned int,unsigned int>&,  vector< unordered_map<unsigned int,unsigned int>>&,const unsigned int&,unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> >& )>
+            instancesEnumerationBackTrack =[&instancesEnumerationBackTrack]  (unsigned int stgid, unordered_map<unsigned int,unsigned int>& curMapping, vector< unordered_map<unsigned int,unsigned int>>& allMappings,
+                    const unsigned int& szStages, unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> >& stg2InstCombinations)->void{
+                    if(stgid == szStages) {
+                        allMappings.push_back(curMapping);
+                        return;
+                    }
+                    for(const vector<pair<unsigned int,unsigned int>>& instComb: stg2InstCombinations[stgid]){
+                        for(const auto& [fnType, fnInstId]: instComb){
+                            curMapping[fnType]=fnInstId;
+                        }
+                        instancesEnumerationBackTrack(stgid+1,curMapping, allMappings, szStages, stg2InstCombinations);
+                    }
     };
 
-    for(unsigned int stgid=0; stgid<szStages; stgid++){
-        const auto& curStg = partParSFC[stgid];
+    cSFC->bst_parlen_idx = cSFC->allPartParSFC.size(); // from partParSFC what is the best partial mapping.
+    cSFC->bst_seqlen_time = std::numeric_limits<float>::max();
+    cSFC->bst_parlen_time = std::numeric_limits<float>::max();
+    //    vector<vector<unsigned int>> partParSFC = {{1},{6,4},{5}} ;
+    /*! {{1},{6,4},{5}}; Each Partial SFC is without src and dest block/stage. */
+    for(unsigned int ppsidx=0; ppsidx<cSFC->allPartParSFC.size(); ppsidx++){
+        const vector<vector<unsigned int>>& partParSFC= cSFC->allPartParSFC.at(ppsidx); ///< for each of the partial parallel SFC of the givenParVNF Blocks
+        const unsigned int szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
+        bool isNumStagesSameAsSeqLen = (szStages == cSFC->numVNF); // if par len is same as seqential chain length.
 
-        if(curStg.size() == 1){ // only one function in the block, then insert all its instance as combination
-            for(int instid=1; instid<=VNFNetwork->VNFNode[curStg[0]]->numInstances; instid++)
-                stg2InstCombinations[stgid].push_back({{curStg[0], instid}});
-        } else{
-            vector<pair<unsigned int,unsigned int>> curInstComb;
-            findBofGivenBlk(0, curInstComb, stgid, curStg);
+        /*! level to Instances Combinations = set of instance combination in block/stage/level index j. {stgid -> 2d{ 1d instances combinations{pair<fun, inst>}  }} */
+        unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> > stg2InstCombinations;
+        for(unsigned int stgid=0; stgid<szStages; stgid++){      // finding instances possibilities of each stage.
+            const auto& curStg = partParSFC[stgid];
+            if(curStg.size() == 1){ // only one function idx=0 in the block, then insert all its instance as combination
+                for(unsigned int instid_f0=1; instid_f0<=VNFNetwork->VNFNode[curStg.at(0)]->numInstances; instid_f0++)
+                    stg2InstCombinations[stgid].push_back({{curStg.at(0), instid_f0}});
+            }else if(curStg.size() == 2){ // two function in the block, then insert all its instance as combination
+                for(unsigned int instid_f0=1; instid_f0<=VNFNetwork->VNFNode[curStg.at(0)]->numInstances; instid_f0++){
+                    for(unsigned int instid_f1=1; instid_f1<=VNFNetwork->VNFNode[curStg.at(1)]->numInstances; instid_f1++){
+                        stg2InstCombinations[stgid].push_back({{curStg.at(0), instid_f0},{curStg.at(1), instid_f1}});
+                    }
+                }
+            } else { // if 3 or more func are parallel
+                vector<pair<unsigned int,unsigned int>> curInstComb;
+                find_stg2IC_ofGivenBlk(0, curInstComb, stgid, curStg, stg2InstCombinations);
+            }
+        }//stgid<szStages finding instances possibilities of each stage.
+        // show stages wise instances combination
+
+        ///finding all the mapping possibilites for the current partParSFC instance combination at each stage.
+            vector< unordered_map<unsigned int,unsigned int>> allMappings;
+            unordered_map<unsigned int,unsigned int> curMapping;
+        instancesEnumerationBackTrack(0, curMapping, allMappings, szStages, stg2InstCombinations);
+
+        if(showInConsole and showInConsoleDetailed){ // showing partParSFC info
+            cout<<"\n partParSFC["<<ppsidx<<"]: "; for(const auto& blks: partParSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<") ---------- - --------- - ------";
+            for(int cur_lvl=0; cur_lvl<szStages; cur_lvl++){  // showing stage wise combination
+                cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2InstCombinations[cur_lvl].size()<<") { ";
+                for(const auto& instComb: stg2InstCombinations[cur_lvl]){
+                    cout<<"[";  for(const auto& givenPair: instComb){  cout<<""<<givenPair.first<<char(givenPair.second-1+'a')<<" "; } cout<<"]";
+                }  cout<<" }";
+            }
+
+        }
+
+        unsigned int bestMappingId = allMappings.size();
+        float minTotalTime = std::numeric_limits<float>::max();
+        for(unsigned int mapid=0; mapid<allMappings.size(); mapid++){
+            const auto& L_VNFType2Inst= allMappings[mapid]; // Local Mapping
+            float parallelCost=0, paketCost=0;
+                parallelCost = calcObjectiveValuePar<type_wgt, type_res>(partParSFC,L_VNFType2Inst,  cSFC->index, allSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
+            if(isNumStagesSameAsSeqLen == false) // packet delay only in case of parallelism when number of blocks/stages < numOfVNFs (Sequential chain length)
+                paketCost = calcTime_PacketsDelay<type_res>(partParSFC, L_VNFType2Inst,  cSFC->index, VNFNetwork, VirtualNetwork);
+
+            float curMapTime = parallelCost+paketCost; // float_max+flaot+max => inf
+
+            if( curMapTime < minTotalTime - std::numeric_limits<float>::epsilon()){ // current mapping ka time is less than calc time
+                bestMappingId = mapid;
+                minTotalTime =  curMapTime;
+            }
+
+            if(showInConsole and showInConsoleDetailed){
+                if(mapid%3==0)cout<<"\n";
+                cout<<"\t"<<mapid <<"["; for(const auto &blk: partParSFC){ for(const auto& fnid: blk){ cout<<fnid<<char(96+L_VNFType2Inst.at(fnid))<<" ";  }  } cout<<"]";
+                cout<<"["<<curMapTime<<"sec ("<<parallelCost<<"|"<<paketCost<<")]";
+            }
+        } // for each mapping
+        if(showInConsole and showInConsoleDetailed){  cout<<"\n  MinTime Mapping ID: "<<bestMappingId<<" "; }
+
+        if(ppsidx == 0){// index 0 partial chain is same as given sfc
+            if(minTotalTime < cSFC->bst_seqlen_time){ // current part chain ka time seq time se kam hai.
+                cSFC->bst_seqlen_time = minTotalTime;
+                cSFC->bst_seqlen_mapping = allMappings[bestMappingId];
+            }
+        }else{ // if it is parallel where chain length is less than sequential
+            if(minTotalTime < cSFC->bst_parlen_time){ // current part chain ka time seq time se kam hai.
+                cSFC->bst_parlen_time = minTotalTime;
+                cSFC->bst_parlen_idx = ppsidx;
+                cSFC->bst_parlen_mapping = allMappings[bestMappingId];
+            }
+        }
+    }// for each PartParSFC.
+
+    if(cSFC->bst_seqlen_time == std::numeric_limits<float>::max()){
+        string errorMsg = "Algorithm failed to find best mapping for SFC["+to_string(cSFC->index)+ "]  Function: ";
+        throw runtime_error(errorMsg+ __FUNCTION__);
+    }
+
+    if(cSFC->bst_parlen_idx == cSFC->allPartParSFC.size() ){
+        string errorMsg = "Algorithm failed to find best partial parallel mapping for SFC["+to_string(cSFC->index)+ "]. Function: ";
+        throw runtime_error(errorMsg+ __FUNCTION__);
+    }
+
+    if(showInConsole){
+        cout<<"\n\n Objective Function Answer For SFC["<<cSFC->index<<"]";
+        cout<<"\n\t Sequential: partIdx[0]  time:["<<cSFC->bst_seqlen_time<<"] :(";
+            for(const auto &blk: cSFC->allPartParSFC[0]) {
+                cout<<"[";  for(const auto& fnid: blk){
+                            cout<<fnid<<char(96+cSFC->bst_seqlen_mapping.at(fnid))<<" ";
+                        }   cout<<"]";
+            }
+        cout<<"\n\t Parallel: partIdx["<<cSFC->bst_parlen_idx<<"]  time:["<<cSFC->bst_parlen_time<<"] :(";
+        for(const auto &blk: cSFC->allPartParSFC[cSFC->bst_parlen_idx]) {
+            cout<<"[";  for(const auto& fnid: blk){
+                cout<<fnid<<char(96+cSFC->bst_parlen_mapping.at(fnid))<<" ";
+            }   cout<<"]";
         }
 
     }
 
-//    for(const auto& x: stg2InstCombinations){
-//        cout<<"\nSTG["<<x.first<<"]("<<x.second.size()<<") { ";
-//        for(const auto& y: x.second){
-//            cout<<"[";
-//            for(const auto& z: y){
-//                cout<<""<<z.first<<char(z.second-1+'a')<<" ";
-//            }
-//            cout<<"]";
-//        }
-//        cout<<" }";
-//    }
-
-//    std::function<void()> instancesSelection =[&instancesSelection, &partParSFC, &stg2InstCombinations](unsigned int stgid, unordered_map<unsigned int, int>& curVNFType2Inst)->void{
-//        if(stgid == partParSFC.size())
-//        {
-//            return;
-//        }
-//
-//        for(const auto& instComb: stg2InstCombinations[stgid]){
-//            for(const auto& [fnType, fnInstId]: instComb){
-//                curVNFType2Inst[fnType]=fnType;
-//            }
-//        }
-//
-//    };
-
-    struct layerGraphNode{
-        pair<unsigned int,unsigned int> lev2InstCombId;
-        int time=0;
-        layerGraphNode(int _updTime, pair<unsigned int,unsigned int> _givenInstComb){
-            this->time = _updTime;
-            this->lev2InstCombId = _givenInstComb;
-        };
-    };
-    layerGraphNode srcNode(0,{0,0});
-    unordered_map<int,vector<layerGraphNode>> lgAdj;
-    lgAdj[0].push_back(srcNode);
-
-    unsigned int stg_nxt_idx = 1;
-    /*!
-     * stg 0 (1 function has 3 instances), B[0] = 2d{  1d[<1a>] [<1b>] [<1c>]  }\n
-     * stg 1 (2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] }\n
-     * stg 2 (1 function 2 instances), B[2] = {[5a] [5b] [5c}\n
-     */
-
-//     for(int cur_lvl=0; cur_lvl<szStages; cur_lvl++){
-//         cout<<"\nSTG["<<cur_lvl<<"]("<<stg2InstCombinations[cur_lvl].size()<<") { ";
-//         for(const auto& instComb: stg2InstCombinations[cur_lvl]){
-//             cout<<"[";
-//             for(const auto& givenPair: instComb){
-//                 cout<<""<<givenPair.first<<char(givenPair.second-1+'a')<<" ";
-//             }
-//             cout<<"]";
-//         }
-//     }
 
 
 }
@@ -195,6 +270,8 @@ int main()
 // TODO: can you parallelise some aspects of program??
 // TODO:
 // TODO: parallel graph data collection
+// TODO: parallelism -> fullSFC se sare partial nikalte time, sabka parallely nikal skte. ek partSFC ke stagewise inst combination parallel nikal skte.
+// TODO: X ka mapping.
 
 //    auto ft_start = std::chrono::steady_clock::now();
 //    clusterSizeEnumeration(int(clusterSz.size()),maparVNFs_Cluster_AssignemtnxSFClen);
@@ -280,8 +357,8 @@ int main()
     assign_ForSFC_VNFType_2_InstID(VNFType_TO_InstID[3], SFC[3]);
 
     auto ft_start = std::chrono::steady_clock::now();
-//    parVNFBlocks_ClusterAssignment_ForSFC(SFC[1]);
-    layerGraphConstruction_and_InstanceSelectionAndRouting(SFC[1], VNFNetwork, VirtualNetwork, PhysicalNetwork, true);
+    parVNFBlocks_ClusterAssignment_ForSFC(SFC[1]);
+    layerGraphConstruction_and_InstanceSelectionAndRouting(SFC[1], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork, true);
     if(debug)cout<<"\nTime:"<<std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - ft_start).count()<<"ms)";
 
 //    PhysicalNetwork->showPNs_Description();
@@ -306,8 +383,8 @@ int main()
 //    for(int ni=1; ni<=total_SFC; ni++){
 //        cout<<"\nSFC["<<ni<<"] E2E: ";
 //        cout<<"Seq["<<calcObjectiveValueSeq<type_wgt_local, type_res_local>(SFC[ni], SFC[ni]->I_VNFType2Inst, SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
-//        cout<<"Par["<<calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar,SFC[ni]->I_VNFType2Inst,  SFC[ni], SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
-//        cout<<"Pkt["<<calcTime_PacketsDelay<type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni]->I_VNFType2Inst, SFC[ni], VNFNetwork, VirtualNetwork)<<"]";
+//        cout<<"Par["<<calcObjectiveValuePar<type_wgt_local, type_res_local>(SFC[ni]->vnfBlocksPar,SFC[ni]->I_VNFType2Inst,  SFC[ni]->index, SFC, VNFNetwork, VirtualNetwork, PhysicalNetwork)<<"]  ";
+//        cout<<"Pkt["<<calcTime_PacketsDelay<type_res_local>(SFC[ni]->vnfBlocksPar, SFC[ni]->I_VNFType2Inst,  SFC[ni]->index, VNFNetwork, VirtualNetwork)<<"]";
 //    }
 //    debug=1;
 

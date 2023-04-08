@@ -8,16 +8,26 @@
 class ServiceFunctionChain
 {
 public:
+// given parameters
     unsigned int index /*!< SFC index */; string name;  /*!< SFC name */ unsigned int numVNF;  /*!< number of VNFs except source and dest node */
     float trafficArrivalRate;  /*!< traffic arrival rate of SFC s. in packets per second. arrival rate < service rate. */
     vector<int> vnfSeq; ///< vnfids in sequential manner including src (SFCsrc=0) and dest (SFCdst=-10).
+
+// parameters found through algorithm.
     vector<vector<unsigned int>> vnfBlocksPar; ///< vnfids in stage wise, where stg i denotes parallel vnf in ith stage. Exvept src and dest stg.
     /*!
      * for final par SFC, VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}. \n
      * value zero means not mapped. \n
      * initially mapped to value 1 at time of reading.
     */
-    unordered_map<unsigned int, unsigned int> I_VNFType2Inst;
+    unordered_map<unsigned int, unsigned int> I_VNFType2Inst; ///< Best mapping for parallel length chain through algorithm
+    vector<vector<vector<unsigned int>>> allPartParSFC;
+
+    float bst_seqlen_time; ///< Best time for given sequential length chain according to our algorithm.
+    unordered_map<unsigned int, unsigned int> bst_seqlen_mapping; ///< Best mapping {fun->its instance taken} for given sequential length chain according to our algorithm.
+    unsigned int bst_parlen_idx; ///< idx of allPartParSFC array for which parallelsim give less time.
+    float bst_parlen_time; ///< Best time for partial parallel chain with index bst_parlen_idx according to our algorithm.
+    unordered_map<unsigned int, unsigned int> bst_parlen_mapping; ///< Best mapping for partial parallel chain with index bst_parlen_idx according to our algorithm.
 
 
 //    unordered_map<unsigned int, bool> isVNF_Present;  /*!< given VNF index check, if it in SFC or not. {vnfid, true/false}. used in calcualtion of queuing delay */

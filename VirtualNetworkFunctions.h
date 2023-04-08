@@ -13,9 +13,9 @@ class VNFNode
 {
 public:
     unsigned int index  /*! physical node index. Type int.*/;  string name /*! node name  */;
-    unsigned int numInstances{}; ///< number of instances of vnf.
-    float serviceRate{}; ///< rate of service of vnf. in packets per second. arrival rate < service rate.
-    float executionTime{}; ///< time taken to execute the particular function
+    unsigned int numInstances; ///< number of instances of vnf.
+    float serviceRate; ///< rate of service of vnf. in packets per second. arrival rate < service rate.
+    float executionTime; ///< time taken to execute the particular function
     NodeCapacity<type_res> requirement; ///<  requirements  of the VM node. Type NodeCapacity.
 
     unordered_map<unsigned int,pair<unsigned int,unsigned int>> inst2nw; ///< collecting information for each VNF node that what are its instances and where are they hosted {vmid, pnid} {vnf ke instance id (1-based) --> {VM_id, PN_id};

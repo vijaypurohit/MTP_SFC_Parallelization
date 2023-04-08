@@ -420,14 +420,15 @@ void convertSeqSFC_to_FullParVNFBlocks(ServiceFunctionChain* SFC, VirtualNetwork
  * where cluster_i {1, 2, 1, 1} means in level[0] only one function runs, level[2] = 2 functions run together, and level[3] and level[4] one-one function are there \n
  * {[1], [2,1,1]} is mapped to {[f1], [f2,f3,f4,f4]} such that [ 1-c combination of f1 ]-> [2-c combination of f2,f3,f4,f5] -> [1-c combination of f2,f3,f4,f5] -> [1-c combination of f2,f3,f4,f5] \n
  */
-void parVNFBlocks_ClusterAssignment_ForSFC(ServiceFunctionChain* SFC, bool showInConsole = false){
+void parVNFBlocks_ClusterAssignment_ForSFC(ServiceFunctionChain* SFC, bool showInConsole = false, bool showInConsoleDetailed = false){
     const vector<vector<unsigned int>>& fullParVNFBlocks = SFC->vnfBlocksPar;
     const unsigned int& nBlk = fullParVNFBlocks.size(); ///< number of blocks of the fully parallel SFC, (including src and dst block)
-    vector<vector<vector<unsigned int>>> allPartParSFC; ///< All the Partial parallel Clusters of the fully parallel VNF Blocks. Each SFC is without src and dest.
+    vector<vector<vector<unsigned int>>>& allPartParSFC = SFC->allPartParSFC; ///< All the Partial parallel Clusters of the fully parallel VNF Blocks. Each SFC is without src and dest.
 //    const vector<vector<unsigned int>> SK = { {1,  2,1,1},{1, 2,2}, {1,4}, {2,2,1}, {3,1,1} };
 
     /// lambda backtrack function to find all partial sfc corresponding to cluster_i and parSFC_Full.
-    std::function<void(unsigned int,vector<vector<unsigned int>>&,unordered_map<unsigned int,vector<unsigned int>>&, unsigned int&)> findAllPartSFC_Backtrack=[&findAllPartSFC_Backtrack, &allPartParSFC, &fullParVNFBlocks]
+    std::function<void(unsigned int,vector<vector<unsigned int>>&,unordered_map<unsigned int,vector<unsigned int>>&, unsigned int&)> findAllPartSFC_Backtrack
+            =[&findAllPartSFC_Backtrack, &allPartParSFC, &fullParVNFBlocks]
             (unsigned int cur_level_idx, vector<vector<unsigned int>>&partSFC, unordered_map<unsigned int,vector<unsigned int>>& levelInfo, unsigned int& mask) ->void
     {
         // if current level is equal to total level in cluster/SFC.
@@ -459,23 +460,23 @@ void parVNFBlocks_ClusterAssignment_ForSFC(ServiceFunctionChain* SFC, bool showI
     };
 
 
-    if(showInConsole){
+    if(showInConsole and showInConsoleDetailed){
         SFC->showSFC_BlockWise(SFCpar, SFC->I_VNFType2Inst);
     }
     for(const vector<unsigned int>& cluster: clusterSz[SFC->numVNF]){ //
-        if(cluster[0] > fullParVNFBlocks[1].size()) // if in first block(after src blk) 2 function is there, but cluster saying 3 needs to be parallel then continue next cluster.
+        if(cluster[0] > fullParVNFBlocks[0].size()) // if in first block(after src blk) 2 function is there, but cluster saying 3 needs to be parallel then continue next cluster.
             continue;
 
         unsigned int cur_level=0; ///< current level at which we have to insert all the nodes
         unordered_map<unsigned int,vector<unsigned int>> levelInfo;///< this stores level wise info {level i -> {0 -> blkId, 1->n, 2-> k}} to find nCk for block blkId of parSFC_Full
 
 
-        if(showInConsole){
+        if(showInConsole and showInConsoleDetailed){
             cout<<"\ncluster["; for(const auto& x: cluster) cout<<x<<" "; cout<<"]";
         }
         bool allBlksOfSFCDone = true;
         // iterate through the blocks except src (1) and dst(nBlk-1) and map it to cur cluster.
-        for(unsigned int blk_id=1; blk_id<nBlk-1; blk_id++){
+        for(unsigned int blk_id=0; blk_id<nBlk; blk_id++){
             const unsigned int& curBlk_size = fullParVNFBlocks[blk_id].size();  ///< current block size, that is num of VNFs present in it.
 
             /*!
@@ -491,13 +492,13 @@ void parVNFBlocks_ClusterAssignment_ForSFC(ServiceFunctionChain* SFC, bool showI
                 }
             }
             if(!foundMapping) {
-                if(showInConsole){ cout<<"\tNot feasible for block{"; for(const auto& x: fullParVNFBlocks[blk_id]) cout<<"f"<<x<<","; cout<<"}";}
+                if(showInConsole and showInConsoleDetailed){ cout<<"\tNot feasible for block{"; for(const auto& x: fullParVNFBlocks[blk_id]) cout<<"f"<<x<<","; cout<<"}";}
                 allBlksOfSFCDone = false; // break lag gya isliye dfs call mt krna
                 break;
             }
 
             for(unsigned int li=cur_level; li<cur_level+delta; li++){
-                if(showInConsole){
+                if(showInConsole and showInConsoleDetailed){
                     cout<<"\n\tL["<<li+1<<"]: \t";
                     for(const auto& allComb: nCk[curBlk_size][cluster[li]]) {
                         cout<<"{"; for(auto node: allComb) cout<<"f"<<fullParVNFBlocks[blk_id][node-1]<<",";  cout<<"}";

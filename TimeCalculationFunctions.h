@@ -55,8 +55,8 @@ float calcTime_PropagationDelay(unsigned int n1, unsigned int n2, const Physical
  * @return queueing delay in seconds.
  * Sabse phele ham sab SFC me dekhenge ki ye curVNF present hai kya, and curVNF ka jo instance use kr rhe wohi hai to add kr denge us SFC ka arrival rate
  */
-float calcTime_QueuingDelay(const unsigned int& curVNFid, const float &mu_f,unordered_map<unsigned int, unsigned int>& X_VNFType2Inst,
-                            unsigned int curSFCindex, const vector<ServiceFunctionChain*>& allSFC){
+float calcTime_QueuingDelay(const unsigned int& curVNFid, const float &mu_f,    const unordered_map<unsigned int, unsigned int>& X_VNFType2Inst,
+                            const unsigned int curSFCindex, const vector<ServiceFunctionChain*>& allSFC){
     float lambda = 0;
     for(unsigned int c=1; c<=total_SFC; c++){ //0th SFC is un-assigned, don't use allSFC.size()
      ServiceFunctionChain *sfc;
@@ -151,19 +151,19 @@ float calcTime_IntraMergingTime(unsigned int cntParallelServer){
  * at each level requires -> inter merging, intra duplication, intra merging, inter duplication
  * @param givenParSFC given enumeration of vnfBlockPar for which we have to calcualte the delay (except src dst block)
  * @param X_VNFType2Instv In curSFC VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
- * @param cSFC given SFC object whose delay we have to colculate
+ * @param curSFCidx given SFC object whose delay we have to colculate
  * @param VNFNetwork VirtualNetworkFunctions object to find the required VM of the given vnf id and instance id
  * @param VirtualNetwork  VirtualMachines object to find the required Physical Node of the given VM id
  * @param showInConsole to show the calculation debug info in console. Default False.
  * @tparam type_res resource data type. default=unsigned int.
- * @return packet delay of SFC in seconds.
+ * @return packet delay of SFC in seconds. If not reachable (<0) then max time(float value).
  */
 template<typename type_res=unsigned int>
-float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, unordered_map<unsigned int, unsigned int>& X_VNFType2Inst,
-                            ServiceFunctionChain *cSFC, VirtualNetworkFunctions<type_res> *VNFNetwork,
+float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, const unordered_map<unsigned int, unsigned int>& X_VNFType2Inst,
+                            const unsigned int& curSFCidx, const VirtualNetworkFunctions<type_res> *VNFNetwork,
                             const VirtualMachines<type_res> *VirtualNetwork, bool showInConsole=false){
 //    givenParSFC = { {3, 3, 4}, {3,4,4,5,5,6}, {3,3,4,7,6} };
-    if(debug) cout<<"\n>>>[Function Running: "<<__FUNCTION__<<"]";
+    if(debug and showInConsole) cout<<"\n>>>[Function Running: "<<__FUNCTION__<<"]";
     unsigned int szStages = givenParSFC.size();
     /*! cSFCsrc is dummy state, next stage to process is first parallel block  i.e index 0 of parBlockArray\n
      *                      [src] -> [f1] -> [f6 f4] -> [f5] -> [dst]\n
@@ -241,7 +241,11 @@ float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, uno
     if(showInConsole) {
         cout<<"\n:STG[DST]: "<<"prvD:"<<stgPN[szStages].size(); cout<<" \t[E2E:"<<totalPktDelay<<"]";
     }
-    if(debug)cout<<"\n<<<[Function Completed: "<<__FUNCTION__<<"]";
+    if(debug and showInConsole)cout<<"\n<<<[Function Completed: "<<__FUNCTION__<<"]";
+
+    if ( totalPktDelay < 0) { // if distance obtanied is negative (unreachable or -1 default min distance). delay can be 0 in case of no packet processing.
+        return std::numeric_limits<float>::max();
+    }
     return totalPktDelay;
 }//calcTime_PacketsDelay
 
@@ -249,9 +253,9 @@ float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, uno
 /*! Calculate the end-to-end delay of given PARALLEL SFC with VNF instances assigned. \n
  * End-to-End delay includes - transmission time, propagation time, execution time, queuing delay, processing time.
  * Don't include same vnf again in same SFC.
- * @param givenParSFC given enumeration of vnfBlockPar for which we have to calcualte the delay (except src dst block)
+ * @param givenParSFC given enumeration of vnfBlockPar of cSFC for which we have to calcualte the delay (except src dst block)
  * @param X_VNFType2Instv In curSFC VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
- * @param cSFC given SFC object from which we get the mapping and given SFC detail
+ * @param curSFCidx given SFC index from which we get the mapping and given SFC detail
  * @param allSFC all the SFC in the network, required to calculate arrival rate for queuing delay.
  * @param VNFNetwork VirtualNetworkFunctions object to find the required VM of the given vnf id and instance id
  * @param VirtualNetwork VirtualMachines object to find the required Physical Node of the given VM id
@@ -259,19 +263,19 @@ float calcTime_PacketsDelay(const vector<vector<unsigned int>>& givenParSFC, uno
  * @param showInConsole to show the calculation debug info in console. Default False.
  * @tparam type_wgt type_wgt edge weight data type. default=unsigned int.
  * @tparam type_res resource data type. default=unsigned int.
- * @return time (in seconds) End to end delay of SFC.
+ * @return time (in seconds) End to end delay of SFC. If not reachable (<=0) then max time(float value).
  */
 template<typename type_wgt=unsigned int, typename type_res=unsigned int>
-float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, unordered_map<unsigned int,unsigned int>& X_VNFType2Inst,
-                            ServiceFunctionChain *cSFC, const vector<ServiceFunctionChain*>& allSFC,
-                            VirtualNetworkFunctions<type_res> *VNFNetwork, const VirtualMachines<type_res> *VirtualNetwork,
+float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC,   const unordered_map<unsigned int,unsigned int>& X_VNFType2Inst,
+                            const unsigned int &curSFCidx, const vector<ServiceFunctionChain*>& allSFC,
+                            const VirtualNetworkFunctions<type_res> *VNFNetwork, const VirtualMachines<type_res> *VirtualNetwork,
                             const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork, bool showInConsole=false)
 {
-    if(debug)cout<<"\n>>[Function Running: "<<__FUNCTION__<<"]";
+    if(debug and showInConsole)cout<<"\n>>[Function Running: "<<__FUNCTION__<<"]";
 
     float default_min_distance = -1; ///< default min distance to be used in distance(time) calculation.
     unordered_map<int, float> distance; ///<stores longest distance to each node
-    for(const auto& vnfid: cSFC->vnfSeq)   distance[vnfid] = default_min_distance; // jitne bhi function hai unko min dist se intialise kr do
+    for(const auto& vnfid: allSFC[curSFCidx]->vnfSeq)   distance[vnfid] = default_min_distance; // jitne bhi function hai unko min dist se intialise kr do
     distance[SFCsrc] = 0;
 
     float T_tx, T_tx_init = calcTime_TransmissionDelay();
@@ -292,10 +296,10 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, uno
             string errorMsg = "Error in accessing SFC. vnf_dst_idx: " + to_string(vnf_dst_idx) + ". Function:";
             throw runtime_error(errorMsg + __FUNCTION__);
         }
-        VNFNode<type_res> *dstVNFNode = VNFNetwork->VNFNode[vnf_dst_idx];
+        VNFNode<type_res> *dstVNFNode = VNFNetwork->VNFNode.at(vnf_dst_idx);
         T_prc = calcTime_MeanProcessingDelayVNF<type_res>(dstVNFNode);
         T_exe = calcTime_FunctionExecutionDelay<type_res>(dstVNFNode);
-        try { T_qd = calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,cSFC->index,allSFC);
+        try { T_qd = calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,curSFCidx,allSFC);
         } catch (std::exception const &e) { std::cerr << "caught: " << e.what() << std::endl; }
 //          T_prc=0.5; T_exe = 1; T_qd=2;
         /// T_tx using same value as at the time of declaration.  from source to all child, add processing time of packet duplication.
@@ -331,7 +335,7 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, uno
                         }
                         T_prc = calcTime_MeanProcessingDelayVNF<type_res>(dstVNFNode);
                         T_exe = calcTime_FunctionExecutionDelay<type_res>(dstVNFNode);
-                        try {  T_qd = calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,cSFC->index, allSFC);
+                        try {  T_qd = calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,curSFCidx, allSFC);
                         } catch (std::exception const &e) { std::cerr << "caught: " << e.what() << std::endl; }
 //                    T_tx = 1; T_px = 1; T_qd = 1; T_prc = 1; T_exe = 1; T_prc=0.5; T_exe = 1; T_qd=2;
                         if (showInConsole) {
@@ -349,19 +353,20 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, uno
         } //for each src vnf
     }///<Stage Wise execution to maintain topological order
 
-    if(showInConsole) { cout<<endl<<"Distance:\n";  for(const auto& d: cSFC->vnfSeq){ cout<<"f["<<d<<"]:"<<distance[d]<<" |  "; }}
-//    if ( distance[SFCdst] == default_min_distance) {
-//        string errorMsg = "SFC Parallel DST Node Time is -1.";
-//        throw errorMsg;
-//    }
-    if(debug)cout<<"\n<<[Function Completed: "<<__FUNCTION__<<"]";
+    if(showInConsole) { cout<<endl<<"Distance:\n";  for(const auto& d: allSFC[curSFCidx]->vnfSeq){ cout<<"f["<<d<<"]:"<<distance[d]<<" |  "; }}
+
+    if(debug and showInConsole)cout<<"\n<<[Function Completed: "<<__FUNCTION__<<"]";
+
+    if ( distance[SFCdst] <= 0) { // if distance obtanied is 0 or negative (unreachable or -1 default min distance)
+        return std::numeric_limits<float>::max();
+    }
     return distance[SFCdst];
 }//calcObjectiveValuePar
 
 /*! Calculate the end-to-end delay of given SEQUENTIAL SFC (SFC->vnfSeq) with VNF instances assigned. \n
  * End-to-End delay includes - transmission time, propagation time, execution time, queuing delay, processing time.
  * Don't include same vnf again in same SFC.
- * @param cSFC given SFC object whose delay we have to colculate. cSFC->vnfSeq (including src and dest) array used.
+ * @param givenSFC given SFC object whose delay we have to colculate. givenSFC->vnfSeq (including src and dest) array used.
  * @param X_VNFType2Instv In curSFC VNF type is assigned to its which instance id i.e. {VNFid, instance id (1-based indexing)}.
  * @param allSFC all the SFC in the network, required to calculate arrival rate for queuing delay.
  * @param VNFNetwork VirtualNetworkFunctions object to find the required VM of the given vnf id and instance id
@@ -370,40 +375,40 @@ float calcObjectiveValuePar(const vector<vector<unsigned int>>& givenParSFC, uno
  * @param showInConsole to show the calculation debug info in console. Default False.
  * @tparam type_wgt type_wgt edge weight data type. default=unsigned int.
  * @tparam type_res resource data type. default=unsigned int.
- * @return time (in seconds) End to end delay of SFC.
+ * @return time (in seconds) End to end delay of SFC. If not reachable (<=0) then max time(float value).
  */
 template<typename type_wgt=unsigned int, typename type_res=unsigned int>
-float calcObjectiveValueSeq(ServiceFunctionChain *cSFC, unordered_map<unsigned int, unsigned int>& X_VNFType2Inst,
-                            const vector<ServiceFunctionChain*>& allSFC, VirtualNetworkFunctions<type_res> *VNFNetwork,
+float calcObjectiveValueSeq(const ServiceFunctionChain *givenSFC, const unordered_map<unsigned int, unsigned int>& X_VNFType2Inst,
+                            const vector<ServiceFunctionChain*>& allSFC, const VirtualNetworkFunctions<type_res> *VNFNetwork,
                             const VirtualMachines<type_res> *VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *PhysicalNetwork,
                             bool showInConsole=false){
 
-    if(debug)cout<<"\n>[Function Running: "<<__FUNCTION__<<"]";
-//    if(showInConsole) { cout<<"\nTopological Order: ";for (int x: cSFC->vnfSeq) { if(x == SFCsrc) cout<<"SRC -> "; else if(x == SFCdst) cout<<" DST"; else cout << x <<char(96+X_VNFType2Inst[x])<< " --> "; } }  ///< Print topological order
+    if(debug and showInConsole)cout<<"\n>[Function Running: "<<__FUNCTION__<<"]";
+//    if(showInConsole) { cout<<"\nTopological Order: ";for (int x: givenSFC->vnfSeq) { if(x == SFCsrc) cout<<"SRC -> "; else if(x == SFCdst) cout<<" DST"; else cout << x <<char(96+X_VNFType2Inst[x])<< " --> "; } }  ///< Print topological order
 
-    unsigned int sz = cSFC->vnfSeq.size(); // src + dest = (2)
+    unsigned int sz = givenSFC->vnfSeq.size(); // src + dest = (2)
 
     float default_min_distance = -1; ///< default min distance to be used in distance(time) calculation.
     unordered_map< int, float> distance; ///<stores longest distance to each node
-    for(const auto& vnfid: cSFC->vnfSeq)   distance[vnfid] = default_min_distance; ///< initialization of distance
+    for(const auto& vnfid: givenSFC->vnfSeq)   distance[vnfid] = default_min_distance; ///< initialization of distance
     distance[SFCsrc] = 0;
 
     float T_tx, T_tx_init = calcTime_TransmissionDelay();
     float T_px, T_qd, T_prc, T_exe;
 
 /*! Now we will calculate the longest path in the SFC graph. */
-     // as it is a sequential cSFC only one node is there after SFCsrc. level(0) is SFCsrc
+     // as it is a sequential givenSFC only one node is there after SFCsrc. level(0) is SFCsrc
     {
-        const auto &vnf_dst_idx = cSFC->vnfSeq[1]; //first parallel block with index = 1, index 0 is src
+        const auto &vnf_dst_idx = givenSFC->vnfSeq[1]; //first parallel block with index = 1, index 0 is src
         if (vnf_dst_idx == SFCdst) {
             string errorMsg = "Error in accessing SFC. vnf_dst_idx: " + to_string(vnf_dst_idx) + ". Function:";
             throw runtime_error(errorMsg + __FUNCTION__);
         }
-        VNFNode<type_res> *srcVNFNode = VNFNetwork->VNFNode[vnf_dst_idx];
+        VNFNode<type_res> *srcVNFNode = VNFNetwork->VNFNode.at(vnf_dst_idx);
         T_prc = calcTime_MeanProcessingDelayVNF<type_res>(srcVNFNode);
         T_exe = calcTime_FunctionExecutionDelay<type_res>(srcVNFNode);
         try {
-            T_qd = calcTime_QueuingDelay(vnf_dst_idx, srcVNFNode->serviceRate, X_VNFType2Inst,cSFC->index, allSFC);
+            T_qd = calcTime_QueuingDelay(vnf_dst_idx, srcVNFNode->serviceRate, X_VNFType2Inst,givenSFC->index, allSFC);
         } catch (std::exception const &e) { std::cerr << "caught: " << e.what() << std::endl; }
 //        T_prc=0.5; T_exe = 1;  T_qd=2;
         /// T_tx using same value as at the time of declaration.  from source to all child, add processing time of packet duplication.
@@ -412,7 +417,7 @@ float calcObjectiveValueSeq(ServiceFunctionChain *cSFC, unordered_map<unsigned i
 
     /// from 1 as SFCsrc(0) already considered and first parallel block index=1, TO as sz-2 as src -> sz-1 is destination SFCdst
     for(unsigned int idx = 1; idx <= sz-2; idx++) {
-        const auto& vnf_src_idx = cSFC->vnfSeq[idx]; // int qki -10 bhi hai -10 as dst
+        const auto& vnf_src_idx = givenSFC->vnfSeq[idx]; // int qki -10 bhi hai -10 as dst
         const auto& vnf_src_inst_idx = X_VNFType2Inst.at(vnf_src_idx);
         const auto& vm_src_idx = VNFNetwork->I_VNFinst2VM.at(vnf_src_idx).at(vnf_src_inst_idx);
         const auto& pn_src_idx = VirtualNetwork->I_VM2PN.at(vm_src_idx);
@@ -420,18 +425,18 @@ float calcObjectiveValueSeq(ServiceFunctionChain *cSFC, unordered_map<unsigned i
             if(showInConsole) { cout<<"\n:src: F["<<vnf_src_idx<<char(96+vnf_src_inst_idx)<<"],VM["<<vm_src_idx<<"],PN["<<pn_src_idx<<"]"<<" :dst:";}
             if(distance[vnf_src_idx] != default_min_distance)
             {
-                const int& vnf_dst_idx= cSFC->vnfSeq[idx+1];
+                const int& vnf_dst_idx= givenSFC->vnfSeq[idx+1];
                 if(vnf_dst_idx == SFCdst){ //    T_prc=0.5; //T_tx using same value as at the time of declaration.
                         distance[vnf_dst_idx] = distance[vnf_src_idx] + T_tx_init ;
                 }else{ //vnfIDdst != SFCdst
                     int vnf_dst_inst_idx = X_VNFType2Inst.at(vnf_dst_idx); int vm_dst_idx = VNFNetwork->I_VNFinst2VM.at(vnf_dst_idx).at(vnf_dst_inst_idx); int pn_dst_idx = VirtualNetwork->I_VM2PN.at(vm_dst_idx);
-                    VNFNode<type_res> *dstVNFNode = VNFNetwork->VNFNode[vnf_dst_idx];
+                    VNFNode<type_res> *dstVNFNode = VNFNetwork->VNFNode.at(vnf_dst_idx);
                     if(pn_src_idx == pn_dst_idx){ T_tx=0; T_px=0;
                     }else{ T_tx = T_tx_init; T_px = calcTime_PropagationDelay<type_wgt, type_res>(pn_src_idx, pn_dst_idx, PhysicalNetwork);
                     }
                     T_prc = calcTime_MeanProcessingDelayVNF<type_res>(dstVNFNode);
                     T_exe = calcTime_FunctionExecutionDelay<type_res>(dstVNFNode);
-                    try{ T_qd=calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,cSFC->index ,allSFC);
+                    try{ T_qd=calcTime_QueuingDelay(vnf_dst_idx, dstVNFNode->serviceRate, X_VNFType2Inst,givenSFC->index ,allSFC);
                     } catch( std::exception const& e ) { std::cerr << "caught: " << e.what() << std::endl; }
 //                    T_tx = 1; T_px = 1;  T_prc = 1; T_exe = 1;  T_qd = 1;
                     if(showInConsole) {  cout<<" F["<<vnf_dst_idx<<char(96+vnf_dst_inst_idx)<<"],VM["<<vm_dst_idx<<"],PN["<<pn_dst_idx<<"]"<<"\t" <<"T_tx["<<T_tx<<"] | T_px["<<T_px<<"] | T_qd["<<T_qd<<"] | T_prc["<<T_prc<<"] | T_exe["<<T_exe<<"]";}
@@ -442,14 +447,13 @@ float calcObjectiveValueSeq(ServiceFunctionChain *cSFC, unordered_map<unsigned i
             } // if distance != min
     }//for each vnf in topological order.
 
-    if(showInConsole) { cout<<endl<<"Distance:\n";  for(const auto& d: cSFC->vnfSeq){ cout<<"f["<<d<<"]: "<<distance[d]<<" |  "; }}
+    if(showInConsole) { cout<<endl<<"Distance:\n";  for(const auto& d: givenSFC->vnfSeq){ cout<<"f["<<d<<"]: "<<distance[d]<<" |  "; }}
 
-//    if ( distance[SFCdst] == default_min_distance) {
-//        string errorMsg = "SFC Sequential DST Node Time is -1.";
-//        throw errorMsg;
-//    }
+    if(debug and showInConsole)cout<<"\n<[Function Completed: "<<__FUNCTION__<<"]";
 
-    if(debug)cout<<"\n<[Function Completed: "<<__FUNCTION__<<"]";
+    if ( distance[SFCdst] <= 0) { // if distance obtanied is 0 or negative (unreachable or -1 default min distance)
+        return std::numeric_limits<float>::max();
+    }
     return distance[SFCdst];
 }//calcObjectiveValueSeq
 
