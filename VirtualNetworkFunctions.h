@@ -18,7 +18,7 @@ public:
     float executionTime; ///< time taken to execute the particular function
     NodeCapacity<type_res> requirement; ///<  requirements  of the VM node. Type NodeCapacity.
 
-    unordered_map<unsigned int,pair<unsigned int,unsigned int>> inst2nw; ///< collecting information for each VNF node that what are its instances and where are they hosted {vmid, pnid} {vnf ke instance id (1-based) --> {VM_id, PN_id};
+    //unordered_map<unsigned int,pair<unsigned int,unsigned int>> inst2nw; ///< collecting information for each VNF node that what are its instances and where are they hosted {vmid, pnid} {vnf ke instance id (1-based) --> {VM_id, PN_id};
 
     VNFNode(unsigned int _index, const string& _name,unsigned int _instance, float _serviceRate, float _execTime, NodeCapacity<type_res> _givenRequirements): requirement(_givenRequirements){
         this->index = _index; this->name = _name; this->numInstances = _instance;
@@ -37,10 +37,11 @@ class VirtualNetworkFunctions
     unsigned int numParallelPairs{}; //< count of number of pairs which are parallel
     unsigned int numVNF{}  /*!<  number of unique type of VNFs  */; unsigned int srcVNF /*!< starting VNF to iterate the loop*/;
 public:
-    unordered_map<unsigned int, VNFNode<type_res>*> VNFNode; ///<Index to VNF structure
+    unordered_map<unsigned int, VNFNode<type_res>*> VNFNodes; ///<Index to VNF structure
     unordered_map<unsigned int,unordered_set<unsigned int>> parallelPairs; ///< {i_vnfid ->{j_vnfid it is parallel to}} pairs identifying which are parallel
 
     unordered_map<unsigned int, unordered_map<unsigned int, unsigned int>> I_VNFinst2VM; ///< VNF {type,inst} is hosted on which VM. {VNFid -> {instid -> VM id}} ie. arr[vnf][inst]=vmid;, inst->1based indexing
+    unordered_map<unsigned int, unordered_map<unsigned int, float>> utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}}
     /*! @param _numVirtualNetworkFunctions number of VNFs */
     explicit VirtualNetworkFunctions(unsigned int _numVirtualNetworkFunctions)
     {
@@ -48,10 +49,13 @@ public:
         this->numVNF = _numVirtualNetworkFunctions;
 //        I_VNFinst2VM = vector<vector<unsigned int>>(numVNF + 1);
     }
-    ~VirtualNetworkFunctions()
-    {
-        for (unsigned int v = srcVNF; v <= numVNF; ++v) { //deletion of Adj List Edges
-            delete VNFNode[v]; // delete mapping
+    ~VirtualNetworkFunctions(){
+//        for (unsigned int v = srcVNF; v <= numVNF; ++v) { //deletion of Adj List Edges
+//            delete VNFNodes[v]; // delete mapping
+////            cout<<VNFNodes[v]->index<<"....";
+//        }
+        for(const auto vnfInfo: VNFNodes){
+            delete vnfInfo.second;
         }
         if(debug) cout<<"\n[VirtualNetworkFunctions Destructor Completed]";
     }
@@ -73,15 +77,16 @@ void VirtualNetworkFunctions<type_res>::showVNFs_Description(){
     cout<<"\nIndex\t"<<"Name\t"<<"Instances\t"<<"ServiceRate\t"<<"ExeTime\t"<<" Req[cores][memory][disk][speed]\t"<<" VMNode";
     cout<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
     for (unsigned int u = srcVNF; u <= numVNF; ++u){
-        cout<<"\n"<<VNFNode[u]->index<<" |\t";
-        cout<<VNFNode[u]->name<<" |\t";
-        cout<<VNFNode[u]->numInstances<<" |\t";
-        cout<<VNFNode[u]->serviceRate<<" |\t";
-        cout<<VNFNode[u]->executionTime<<" |\t[";
-        cout<<VNFNode[u]->requirement.cores<<"\t"<<VNFNode[u]->requirement.memory<<"\t"<<VNFNode[u]->requirement.disk<<"\t"<<VNFNode[u]->requirement.cpuSpeed<<"]\t";
-        for(unsigned int inst = 1; inst <=VNFNode[u]->numInstances; inst++){
-            if(I_VNFinst2VM[u].empty()) cout << "VM[-1] ";
-            else cout << "VM[" << I_VNFinst2VM[u][inst] << "] ";
+        const VNFNode<type_res> *vnfInfo = VNFNodes.at(u);
+        cout<<"\n"<<vnfInfo->index<<" |\t";
+        cout<<vnfInfo->name<<" |\t";
+        cout<<vnfInfo->numInstances<<" |\t";
+        cout<<vnfInfo->serviceRate<<" |\t";
+        cout<<vnfInfo->executionTime<<" |\t[";
+        cout<<vnfInfo->requirement.cores<<"\t"<<vnfInfo->requirement.memory<<"\t"<<vnfInfo->requirement.disk<<"\t"<<vnfInfo->requirement.cpuSpeed<<"]\t";
+        for(unsigned int inst = 1; inst <=vnfInfo->numInstances; inst++){
+            if(I_VNFinst2VM.at(u).empty()) cout << "VM[-1] ";
+            else cout << "VM[" << I_VNFinst2VM.at(u).at(inst) << "] ";
         }
     }
 }

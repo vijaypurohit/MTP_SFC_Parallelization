@@ -102,8 +102,8 @@ public:
 
     ~PhysicalGraph() {
         for (unsigned int v = srcV; v <= numV; ++v) { ///deletion of Adj List Edges
-            for (auto edge: adj[v]) delete edge; /// delete all edges
-            delete PNode[v]; /// delete nodes
+            for (const auto edge: adj[v]) delete edge; /// delete all edges
+            delete PNode.at(v); /// delete nodes
         }
         delete[] adj; // delete entire adj list
         if (debug) cout << "\n[PhysicalGraph Destructor Completed for G(" << numV<<", "<<numE<<")]";
@@ -140,7 +140,7 @@ template <class type_wgt, class type_res>
     cout << "\n\n Adjacency List G(" << numV<<", "<<numE<<") ::";
     for (unsigned int v = srcV; v <= numV; ++v) {
         cout << "\n V["<< v << "]:";
-        for (auto edge : adj[v])
+        for (const auto edge : adj[v])
             cout << " -> (" << edge->v<<", "<<edge->wt<<")";
     }
 }
@@ -167,15 +167,16 @@ template <class type_wgt, class type_res>
  * @tparam type_res resource data type. default=unsigned int.
  */
 template <class type_wgt, class type_res>
-[[maybe_unused]] void PhysicalGraph<type_wgt,type_res>::showPNs_Description(){
+void PhysicalGraph<type_wgt,type_res>::showPNs_Description(){
     cout << "\n\n ----- Nodes Description of G(" << numV<<", "<<numE<<") ::";
     cout<<"\nIndex\t"<<"Name\t\t"<<" CAP[cores][memory][disk][speed]\t"<<"VirtualMachines";
     cout<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
     for (unsigned int u = srcV; u <= numV; ++u){
-        cout<<"\n"<<PNode[u]->index<<" |\t";
-        cout<<PNode[u]->name<<" |\t";
-        cout<<PNode[u]->capacity.cores<<"\t"<<PNode[u]->capacity.memory<<"\t"<<PNode[u]->capacity.disk<<"\t"<<PNode[u]->capacity.cpuSpeed<<"\t";
-        for(const unsigned int& vmid: PNode[u]->pn2VMs)
+        const PhysicalNode<type_res> * pn = PNode.at(u);
+        cout<<"\n"<<pn->index<<" |\t";
+        cout<<pn->name<<" |\t";
+        cout<<pn->capacity.cores<<"\t"<<pn->capacity.memory<<"\t"<<pn->capacity.disk<<"\t"<<pn->capacity.cpuSpeed<<"\t";
+        for(const unsigned int& vmid: pn->pn2VMs)
             cout<<"VM["<<vmid<<"] ";
     }
 }
@@ -262,7 +263,7 @@ template <class type_wgt, class type_res>
     {
         u_val = qLoGraph.front();  qLoGraph.pop();
         fout << u_val << " [label = <&eta;<sub>"<<u_val<<"</sub>>];"<< endl;
-        for(auto edge: adj[u_val]){
+        for(const auto edge: adj[u_val]){
             v_val = edge->v;        //adj node value
             if(!visitedNodes[v_val] ){
                 visitedNodes[v_val]=true;

@@ -21,7 +21,7 @@ public:
      * initially mapped to value 1 at time of reading.
     */
     unordered_map<unsigned int, unsigned int> I_VNFType2Inst; ///< Best mapping for parallel length chain through algorithm
-    vector<vector<vector<unsigned int>>> allPartParSFC;
+    vector<vector<vector<unsigned int>>> allPartParSFC; ///< All the partial paralle VNF blocks of the given sequential SFC.
 
     float bst_seqlen_time; ///< Best time for given sequential length chain according to our algorithm.
     unordered_map<unsigned int, unsigned int> bst_seqlen_mapping; ///< Best mapping {fun->its instance taken} for given sequential length chain according to our algorithm.
@@ -43,13 +43,7 @@ public:
         this->index = _index; this->name = _name;  this->numVNF = _numVNF;
         this->trafficArrivalRate = _trafficArrivalRate;
     }
-    ~ServiceFunctionChain() {
-        if (debug) {
-            if(index == 1) cout << "\n[ SFC Destructor Completed for sfc[" << index<<"] ";
-            else if(index == total_SFC) cout << "sfc[" << index<<"] ]";
-            else cout << "sfc[" << index<<"] ";
-        }
-    };
+    ~ServiceFunctionChain()  = default;
 
     unordered_map<int, vector<int>>& typeOfSFCAdj(int);
     static string typeOfSFCString(int) ;
@@ -80,7 +74,7 @@ public:
         }
     }
     else if(type == SFCpar){
-        cout << "\nParallel SFC:["<<name<<"],nVNF["<< numVNF<<"]::\t";
+        cout << "\nParallel Blocks SFC:["<<name<<"],nVNF["<< numVNF<<"]::\t";
         for(size_t i=0; i<vnfBlocksPar.size(); i++){
             if(i==0) cout << "(SRC -> ";
             cout<<"[ "; for(int vnfid: vnfBlocksPar[i]) cout<<"f"<<vnfid<<char(96+VNFType2Inst.at(vnfid))<<"; ";

@@ -384,7 +384,7 @@ void all_nCk(unsigned int n, unsigned int N, bool showInConsole=false){
  * @param VNFNetwork object of VirtualNetworkFunctions class required to check two vnf are parallelizable or not.
  */
 template<typename type_res=unsigned int>
-void convertSeqSFC_to_FullParVNFBlocks(ServiceFunctionChain* SFC, VirtualNetworkFunctions<type_res> *VNFNetwork){
+void convertSeqSFC_to_FullParVNFBlocks(ServiceFunctionChain* SFC, VirtualNetworkFunctions<type_res> *VNFNetwork, bool isLast=false){
     unsigned int sz = SFC->vnfSeq.size(); // total vnfs including src and dest
 //    SFC->vnfBlocksPar.push_back({SFCsrc}); // stage 0, pushing src node
     for(int cid=1; cid<sz-1; cid++){ // from SFCsrc+1 stg to SFCdst-1 stage
@@ -405,7 +405,7 @@ void convertSeqSFC_to_FullParVNFBlocks(ServiceFunctionChain* SFC, VirtualNetwork
             else SFC->vnfBlocksPar.push_back({cur_vnf});
         }//lst stg size>1
     }// for cid
-    if(debug and SFC->index == total_SFC)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
+    if(debug and isLast)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
 }
 
 /*! generate all the feasible partial parallel SFC for the given full parallel SFC.
@@ -560,7 +560,7 @@ void convertSeqSFC_to_FullParallelSFCAndWriteToFile(const string& testDirName, S
             else SFC->vnfBlocksPar.push_back({cur_vnf});
         }//lst stg size>1
     }// for cid
-    if(debug and SFC->index == total_SFC)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
+    if(debug and SFC->index == 3)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
 
     // Inserting into Adj List.
     size_t stages = SFC->vnfBlocksPar.size(); ///< stages of SFC.

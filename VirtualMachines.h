@@ -56,9 +56,12 @@ public:
 //        I_VM2PN = vector<unsigned int>(numVM + 1, -1);
     }
     ~VirtualMachines(){
-        for (unsigned int v = srcVM; v <= numVM; ++v) { //deletion of Adj List Edges
-            delete VMNode[v]; // delete all VMs
+        for(const auto vmInfo: VMNode){
+            delete vmInfo.second;
         }
+//        for (unsigned int v = srcVM; v <= numVM; ++v) { //deletion of Adj List Edges
+//            delete VMNode[v]; // delete all VMs
+//        }
         if(debug) cout<<"\n[VirtualMachines Destructor Completed]";
     }
 
@@ -75,12 +78,13 @@ void VirtualMachines<type_res>::showVMs_Description(){
     cout<<"\nIndex\t"<<"Name\t"<<" CAP[cores][memory][disk][speed]\t"<<" Req[cores][memory][disk][speed]\t " <<" PNode \t"<<" VNFs";
     cout<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
     for (unsigned int u = srcVM; u <= numVM; ++u){
-        cout<<"\n"<<VMNode[u]->index<<" |\t";
-        cout<<VMNode[u]->name<<" |\t[";
-        cout<<VMNode[u]->capacity.cores<<"\t"<<VMNode[u]->capacity.memory<<"\t"<<VMNode[u]->capacity.disk<<"\t"<<VMNode[u]->capacity.cpuSpeed<<"]\t[";
-        cout<<VMNode[u]->requirement.cores<<"\t"<<VMNode[u]->requirement.memory<<"\t"<<VMNode[u]->requirement.disk<<"\t"<<VMNode[u]->requirement.cpuSpeed<<"]\t";
-        cout << "PN[" << I_VM2PN[u] << "]\t";
-        for(const auto& vnfid: VMNode[u]->vm2VNFs)
+        const VirtualMachineNode<type_res>* vmInfo = VMNode.at(u);
+        cout<<"\n"<<vmInfo->index<<" |\t";
+        cout<<vmInfo->name<<" |\t[";
+        cout<<vmInfo->capacity.cores<<"\t"<<vmInfo->capacity.memory<<"\t"<<vmInfo->capacity.disk<<"\t"<<vmInfo->capacity.cpuSpeed<<"]\t[";
+        cout<<vmInfo->requirement.cores<<"\t"<<vmInfo->requirement.memory<<"\t"<<vmInfo->requirement.disk<<"\t"<<vmInfo->requirement.cpuSpeed<<"]\t";
+        cout << "PN[" << I_VM2PN.at(u) << "]\t";
+        for(const auto& vnfid: vmInfo->vm2VNFs)
             cout<<"F["<<vnfid.first<<char(96+vnfid.second)<<"] ";
     }
 }

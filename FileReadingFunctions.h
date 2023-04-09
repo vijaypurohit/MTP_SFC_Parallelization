@@ -192,7 +192,7 @@ void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFuncti
             getline(fin, readVNF_name);
             if (!(fin>>readVNF_idx>>readVNFInst>>readVNF_serviceR>>readVNF_execTime>>readVNF_Req_cores>>readVNF_Req_memory>>readVNF_Req_disk>>readVNF_Req_cpuspeed))
                 cerr << "\t VNF Data Reading Failed: VNF Row["<<ni<<"]\n";
-            (*ptr)->VNFNode[readVNF_idx] = new VNFNode<type_res>(readVNF_idx, readVNF_name, readVNFInst, readVNF_serviceR, readVNF_execTime,
+            (*ptr)->VNFNodes[readVNF_idx] = new VNFNode<type_res>(readVNF_idx, readVNF_name, readVNFInst, readVNF_serviceR, readVNF_execTime,
                                                                  NodeCapacity<type_res>(readVNF_Req_cores, readVNF_Req_memory, readVNF_Req_disk, readVNF_Req_cpuspeed) );
             if(showinConsole)cout<<readVNF_idx<<"-"<<readVNF_name<<"-"<<readVNFInst<<"-"<<readVNF_serviceR<<"-"<<readVNF_execTime<<"-["<<readVNF_Req_cores<<"-"<<readVNF_Req_memory<<"-"<<readVNF_Req_disk<<"-"<<readVNF_Req_cpuspeed<<"]"<<endl;
         }
@@ -259,7 +259,7 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
              }
         }
         total_SFC = i_nSFC;
-        if(debug)cout<<"\t[Orig. SFCs Data Reading Completed] SFCs:"<<total_SFC;
+        if(debug)cout<<"\t[Orig. SFCs Data Reading Completed] SFCs:"<<allSFC.size()-1;
     }else{
         string errorMsg = "Invalid Input File Values. File "+filepathExt+ ". Function: ";
         throw runtime_error(errorMsg+ __FUNCTION__);

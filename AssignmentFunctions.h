@@ -32,9 +32,9 @@ template<typename type_res=unsigned int>
 void assign_VNF_2_VM(const vector<vector<unsigned int>>& VNF_TO_VM, VirtualNetworkFunctions<type_res> *VNFNetwork, VirtualMachines<type_res> *VirtualNetwork){
 
     for(const auto& assign : VNF_TO_VM){
-        unsigned int vnfid = assign[0], instance = assign[1], vmid = assign[2];
-        VNFNetwork->I_VNFinst2VM[vnfid][instance] = vmid;
-        VirtualNetwork->VMNode[vmid]->vm2VNFs.emplace_back(vnfid, instance);
+        unsigned int fnType = assign[0], instance = assign[1], vmid = assign[2];
+        VNFNetwork->I_VNFinst2VM[fnType][instance] = vmid;
+        VirtualNetwork->VMNode[vmid]->vm2VNFs.emplace_back(fnType, instance);
     }
 }
 
@@ -46,14 +46,16 @@ void assign_VNF_2_VM(const vector<vector<unsigned int>>& VNF_TO_VM, VirtualNetwo
  */
 template<typename type_res=unsigned int>
 void assign_VNF_2_InstancesCnt(const vector<pair<unsigned int,unsigned int>>& VNF_TO_InstancesCnt, VirtualNetworkFunctions<type_res> *VNFNetwork){
-    for(const auto& [vnfid, instCnt]: VNF_TO_InstancesCnt){
-        VNFNetwork->VNFNode[vnfid]->numInstances = instCnt;
+    for(const auto& [fnType, instCnt]: VNF_TO_InstancesCnt){
+        VNFNetwork->VNFNodes[fnType]->numInstances = instCnt;
     }
 }
 
-void assign_ForSFC_VNFType_2_InstID( const vector<pair<int,int>>& mapping, ServiceFunctionChain* obj){
-    for(const auto& [vnfid, instid]: mapping){
-        obj->I_VNFType2Inst[vnfid] = instid;
+template<typename type_res=unsigned int>
+void assign_ForSFC_VNFType_2_InstID( const vector<pair<int,int>>& mapping, ServiceFunctionChain* cSFC, VirtualNetworkFunctions<type_res> *VNFNetwork){
+    for(const auto& [fnType, fnInstId]: mapping){
+        cSFC->I_VNFType2Inst[fnType] = fnInstId;
+        VNFNetwork->utilization[fnType][fnInstId] += cSFC->trafficArrivalRate;
     }
 }
 #endif //SFC_PARALLELIZATION_ASSIGNMENTFUNCTIONS_H
