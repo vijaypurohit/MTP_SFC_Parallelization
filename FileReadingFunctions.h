@@ -258,7 +258,7 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
                      cout<<x<<" -> "; cout<<"]\n";
              }
         }
-        total_SFC = i_nSFC;
+//        total_SFC = i_nSFC;
         if(debug)cout<<"\t[Orig. SFCs Data Reading Completed] SFCs:"<<allSFC.size()-1;
     }else{
         string errorMsg = "Invalid Input File Values. File "+filepathExt+ ". Function: ";

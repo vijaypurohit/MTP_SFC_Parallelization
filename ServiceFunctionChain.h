@@ -31,7 +31,7 @@ public:
 
 
 //    unordered_map<unsigned int, bool> isVNF_Present;  /*!< given VNF index check, if it in SFC or not. {vnfid, true/false}. used in calcualtion of queuing delay */
-    unordered_map<int, vector<int>> sAdj, pAdj;  /*!<  serial adjaceny list. parallel adjaceny list. */
+//    unordered_map<int, vector<int>> pAdj;  /*!<  serial adjaceny list. parallel adjaceny list. */
     unordered_map<int, float> distanceSeq, distancePar; ///<stores longest distance to each node
     unordered_map<unsigned int, unordered_map<int, float>> pktDist;
    /*!
@@ -93,9 +93,9 @@ public:
  * @param type SFC type (Serial or parallel)
  * @return sAdj, pAdj serial or parallel adjacency reference
  */
-unordered_map<int, vector<int>>& ServiceFunctionChain::typeOfSFCAdj(const int type){
-    return (type==SFCseq) ? sAdj : pAdj;
-}
+//unordered_map<int, vector<int>>& ServiceFunctionChain::typeOfSFCAdj(const int type){
+//    return (type==SFCseq) ? sAdj : pAdj;
+//}
 /*! Determine SFC type (Serial or parallel)
  * @param type SFC type (Serial or parallel)
  * @return serial or parallel name string
@@ -108,19 +108,19 @@ string ServiceFunctionChain::typeOfSFCString(const int type) {
  * Show Adjacency list of SFC in console.
  * @param type SFC type (Serial or parallel)
  */
-void ServiceFunctionChain::showAdjList(const int type) {
-    unordered_map<int, vector<int>>& adj = typeOfSFCAdj(type);
-    cout << "\nAdjacency List of "<<name<<", Nodes["<< numVNF<<"] :: \n";
-    for (const auto& src: adj) {
-        if(SFCsrc == src.first)   cout << "SRC:";
-        else cout << "F["<< src.first << "]:";
-        for (auto dest : src.second){
-            if(SFCdst == dest)   cout << " -> " << "DST";
-            else cout << " -> F(" << dest <<")";
-        }
-        printf("\n");
-    }
-}
+//void ServiceFunctionChain::showAdjList(const int type) {
+//    unordered_map<int, vector<int>>& adj = typeOfSFCAdj(type);
+//    cout << "\nAdjacency List of "<<name<<", Nodes["<< numVNF<<"] :: \n";
+//    for (const auto& src: adj) {
+//        if(SFCsrc == src.first)   cout << "SRC:";
+//        else cout << "F["<< src.first << "]:";
+//        for (auto dest : src.second){
+//            if(SFCdst == dest)   cout << " -> " << "DST";
+//            else cout << " -> F(" << dest <<")";
+//        }
+//        printf("\n");
+//    }
+//}
 
 
 /*!
@@ -128,7 +128,8 @@ void ServiceFunctionChain::showAdjList(const int type) {
  * @param type SFC type (Serial or parallel)
  */
 void ServiceFunctionChain::showOrigSFC_BlockWise_UsingAdj(const int type) {
-    unordered_map<int, vector<int>>& adj = typeOfSFCAdj(type);
+//    unordered_map<int, vector<int>>& adj = typeOfSFCAdj(type);
+    unordered_map<int, vector<int>> adj;
     cout << "\nStage wise view of "<<name<<", Nodes["<< numVNF<<"] :: \n";
 
     unordered_map<int, bool> visitedBFS; ///< bfs visited array, size= number of vertexes
@@ -170,7 +171,8 @@ void ServiceFunctionChain::showOrigSFC_BlockWise_UsingAdj(const int type) {
  * @param type SFC type (Serial or parallel)
  */
 void ServiceFunctionChain::printOrigSFC(const int type, const string& testDirName){
-    unordered_map<int, vector<int>>& adj = typeOfSFCAdj(type);
+//    unordered_map<int, vector<int>>& adj = typeOfSFCAdj(type);
+    unordered_map<int, vector<int>> adj;
     string sfcTypeName = typeOfSFCString(type);
     if (adj.empty()) {
         cout << "SFC Graph is Empty."<<endl;
@@ -252,55 +254,55 @@ void ServiceFunctionChain::printOrigSFC(const int type, const string& testDirNam
 
 
 /*! Explicit Function to Convert the Sequential VNFs id from (vnfSeq) into Adj List variable (sAdj). */
-void ServiceFunctionChain::ConvertSequentialSequenceToAdj(){
-    size_t len = vnfSeq.size(); ///< length of SFC including src and destination
-    for(size_t i=0; i<=len-2; i++ ){ // len-1 is last stage
-        int srcVNFid = vnfSeq[i];
-        int dstVNFid = vnfSeq[i+1];
-        sAdj[srcVNFid].push_back(dstVNFid);
-    }
-}
+//void ServiceFunctionChain::ConvertSequentialSequenceToAdj(){
+//    size_t len = vnfSeq.size(); ///< length of SFC including src and destination
+//    for(size_t i=0; i<=len-2; i++ ){ // len-1 is last stage
+//        int srcVNFid = vnfSeq[i];
+//        int dstVNFid = vnfSeq[i+1];
+//        sAdj[srcVNFid].push_back(dstVNFid);
+//    }
+//}
 
 
 /*! Convert the Parallel VNFsID in stages from (vnfBlocksPar) into Adj List variable (pAdj).
  * @param blocks stage wise parallel blocks */
-void ServiceFunctionChain::convertToParallelSFC(const vector<vector<unsigned int>>& blocks){
-    this->vnfBlocksPar = std::move(blocks);
-    size_t stages = vnfBlocksPar.size(); ///< stages of SFC.
-    /// for each stage. stages-1 is the last stage
-    for(size_t s=0; s<=stages-2; s++ ){
-        ///for each vnf in source stage
-        for(int srcVNFid : vnfBlocksPar[s]){
-            /// for each vnf in next stage
-            for(int dstVNFid : vnfBlocksPar[s+1]){
-                pAdj[srcVNFid].push_back(dstVNFid);
-            }
-        }
-
-    }
-}
+//void ServiceFunctionChain::convertToParallelSFC(const vector<vector<unsigned int>>& blocks){
+//    this->vnfBlocksPar = std::move(blocks);
+//    size_t stages = vnfBlocksPar.size(); ///< stages of SFC.
+//    /// for each stage. stages-1 is the last stage
+//    for(size_t s=0; s<=stages-2; s++ ){
+//        ///for each vnf in source stage
+//        for(int srcVNFid : vnfBlocksPar[s]){
+//            /// for each vnf in next stage
+//            for(int dstVNFid : vnfBlocksPar[s+1]){
+//                pAdj[srcVNFid].push_back(dstVNFid);
+//            }
+//        }
+//
+//    }
+//}
 
 /*!Another Function to make Serial SFC given all Edges. It Add all the directed edges of sfc int Adj. \n
  * it read VNFs data from edges and convert to sequence to array.
  * @param allEdges all the edges {u,v}, including src and dst edges also.
  */
-void ServiceFunctionChain::addAllDirectedEdgesToAdj(const vector<pair<int, int>>& allEdges) {
-    unordered_map<int, vector<int>>& adj = sAdj;
-    for(const auto& edge: allEdges){
-        adj[edge.first].push_back(edge.second);
-//        isVNF_Present[edge.second]= true;
-        I_VNFType2Inst[edge.second]= 0;
-    }
-    vnfSeq.push_back(SFCsrc);
-    queue<int> q; q.push(SFCsrc);
-    while(!q.empty()) {
-        int src = q.front(); q.pop();
-        for(const auto& w: adj[src]){
-            vnfSeq.push_back(w);
-            q.push(w);
-        }
-    }
-//    cout<<endl<<"test: "; for(auto & x: vnfSeq) cout<<x<<"--";
-}
+//void ServiceFunctionChain::addAllDirectedEdgesToAdj(const vector<pair<int, int>>& allEdges) {
+//    unordered_map<int, vector<int>>& adj = sAdj;
+//    for(const auto& edge: allEdges){
+//        adj[edge.first].push_back(edge.second);
+////        isVNF_Present[edge.second]= true;
+//        I_VNFType2Inst[edge.second]= 0;
+//    }
+//    vnfSeq.push_back(SFCsrc);
+//    queue<int> q; q.push(SFCsrc);
+//    while(!q.empty()) {
+//        int src = q.front(); q.pop();
+//        for(const auto& w: adj[src]){
+//            vnfSeq.push_back(w);
+//            q.push(w);
+//        }
+//    }
+////    cout<<endl<<"test: "; for(auto & x: vnfSeq) cout<<x<<"--";
+//}
 
 #endif //SFC_PARALLELIZATION_SERVICEFUNCTIONCHAIN_H
