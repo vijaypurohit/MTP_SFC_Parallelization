@@ -7,18 +7,10 @@
 
 /*!
  * Virtual Machine Node
- * @tparam type_res resource data type. default=unsigned int.
  */
-template <class type_res =unsigned int>
+template <class type_res>
 class VirtualMachineNode{
-//    struct hash_pair{
-//        template<class T_1,class T_2>
-//        size_t operator()(const pair<T_1,T_2>& x) const {
-//            auto hash_x=hash<T_1>()(x.first); auto hash_y=hash<T_2>()(x.second);
-//            if(hash_x!=hash_y)  return (hash_x) ^ (hash_y);
-//            return hash_x;
-//        }
-//    };
+
 public:
     /*! physical node index. Type int.  */
     unsigned int index{};  string name; ///<node name
@@ -38,9 +30,9 @@ public:
 
 /*!
  * Virtual Machines Collection Data, link with physical node
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type.
  */
-template <class type_res =unsigned int>
+template <class type_res >
 class VirtualMachines
 {
     unsigned int numVM, srcVM; ///<number of virtual machines . \n srcVM = default 1. Loop starts from 1 to <=numVM
@@ -53,7 +45,6 @@ public:
     explicit VirtualMachines(unsigned int _numVirtualMachines)
     {
         srcVM = 1; this->numVM = _numVirtualMachines;
-//        I_VM2PN = vector<unsigned int>(numVM + 1, -1);
     }
     ~VirtualMachines(){
         for(const auto vmInfo: VMNode){
@@ -70,7 +61,7 @@ public:
 };
 
 /*! Show all the Virtual Machine nodes and their description
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type.
  */
 template <class type_res>
 void VirtualMachines<type_res>::showVMs_Description(){
@@ -92,7 +83,7 @@ void VirtualMachines<type_res>::showVMs_Description(){
  /*!
   * @param vmIndex Virtual Machine Index
   * @param pnIndex Physical Node Index
-  * @tparam type_res resource data type. default=unsigned int.
+  * @tparam type_res resource data type.
   */
 template <class type_res>
 void VirtualMachines<type_res>::assignVMtoPN(int vmIndex, int pnIndex){

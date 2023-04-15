@@ -2,8 +2,8 @@
 // Created by vijay on 22-03-2023.
 //
 
-#ifndef SFC_PARALLELIZATION_FILEREADINGFUNCTIONS_H
-#define SFC_PARALLELIZATION_FILEREADINGFUNCTIONS_H
+#ifndef SFC_PARALLELIZATION_FILEFUNCTIONS_H
+#define SFC_PARALLELIZATION_FILEFUNCTIONS_H
 
 /*!
  * Create a directory in input and output folder with test name.
@@ -55,10 +55,10 @@ void readConstants(const string& testDirName)
  * u_idx    v_idx   distance_meter
  * @param testDirName path to the current test directory which consists of inputs files
  * @param graph PhysicalGraph class pointer variable to store values.
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
-template<typename type_wgt=unsigned int, typename type_res=unsigned int>
+template<typename type_wgt, typename type_res>
 void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **graph, bool showinConsole=false)
 {
     ifstream fin;
@@ -120,9 +120,9 @@ void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **
  * @param testDirName  path to the current test directory which consists of inputs files
  * @param ptr VirtualMachines class pointer variable to store value
  * @param showinConsole show the file read values in the console
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type.
  */
-template<typename type_res=unsigned int>
+template<typename type_res>
 void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **ptr, bool showinConsole=false) {
     ifstream fin;
     string filepathExt = input_directory + testDirName + filename_virtualmachines;
@@ -168,9 +168,9 @@ void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **
  * @param testDirName  path to the current test directory which consists of inputs files
  * @param ptr VirtualNetworkFunctions class pointer variable to store value
  * @param showinConsole show the file read values in the console
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type.
  */
-template<typename type_res=unsigned int>
+template<typename type_res>
 void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFunctions<type_res> **ptr, bool showinConsole=false) {
     ifstream fin;
     string filepathExt = input_directory + testDirName + filename_vnf;
@@ -184,7 +184,7 @@ void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFuncti
     unsigned int i_nVNF; // input num of VNFs
     if(fin>>i_nVNF){
         *ptr = new VirtualNetworkFunctions<type_res>(i_nVNF);
-        string readVNF_name; unsigned int readVNF_idx, readVNFInst; float readVNF_serviceR,readVNF_execTime ; unsigned int readVNF_Req_cores;
+        string readVNF_name; unsigned int readVNF_idx, readVNFInst; type_delay readVNF_serviceR,readVNF_execTime ; unsigned int readVNF_Req_cores;
         type_res readVNF_Req_memory, readVNF_Req_disk, readVNF_Req_cpuspeed;
         for(int ni=1; ni<=i_nVNF; ni++) /// For each node there is a row which would be read
         {
@@ -231,7 +231,7 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
     unsigned int i_nSFC; ///< input num of SFCs
     if(fin>>i_nSFC){
         allSFC = vector<ServiceFunctionChain*>(i_nSFC+1);
-        string readSFC_name; unsigned int readSFC_idx, readSFC_totalVNF; float readSFC_arrivalRate ;    int vnfid;
+        string readSFC_name; unsigned int readSFC_idx, readSFC_totalVNF, vnfid; type_delay readSFC_arrivalRate ;
         for(int ni=1; ni<=i_nSFC; ni++) ///< For each node there is a row which would be read
         {
             fin.ignore();
@@ -239,26 +239,19 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
             if (!(fin>>readSFC_idx>>readSFC_totalVNF>>readSFC_arrivalRate))
                 cerr << "\t SFCs Data Reading Failed: SFC Row["<<ni<<"]\n";
             allSFC[ni] = new ServiceFunctionChain(readSFC_idx, readSFC_name, readSFC_totalVNF, readSFC_arrivalRate);
-            allSFC[ni]->vnfSeq.push_back(SFCsrc);
+//            allSFC[ni]->vnfSeq.push_back(SFCsrc);
             for(int vj = 1; vj<=readSFC_totalVNF; vj++) ///< read VNFs type ID.
                 if(fin>>vnfid) {
-//                    allSFC[ni]->sAdj[allSFC[ni]->vnfSeq.back()].push_back(vnfid); //< srcVNFid = SFC->vnfSeq.back(), dstVNFid = vnfid (cur), it should be before inserting into vnfseq
                     allSFC[ni]->vnfSeq.push_back(vnfid);
-//                    allSFC[ni]->isVNF_Present[vnfid]= true;
-                    allSFC[ni]->I_VNFType2Inst[vnfid] = 0; ///< initially no vnfs are mapped
                 }
                 else cerr << "\t VNF for SFCs Data Reading Failed: SFC Row["<<ni<<"]. VNFid["<<vnfid<<"]\n";
-//            allSFC[ni]->sAdj[allSFC[ni]->vnfSeq.back()].push_back(SFCdst);
-            allSFC[ni]->vnfSeq.push_back(SFCdst);
-            /// reading VNFs data to array and then convert to Adj list.
-//            allSFC[ni]->ConvertSequentialSequenceToAdj(); // this function not needed as I accomdated the logic to above
+//            allSFC[ni]->vnfSeq.push_back(SFCdst);
             if(showinConsole) {
                  cout << readSFC_idx << "-" << readSFC_name << "-" << readSFC_totalVNF << "-" << readSFC_arrivalRate<<"- [";
                  for(const auto& x: allSFC[ni]->vnfSeq)
                      cout<<x<<" -> "; cout<<"]\n";
              }
         }
-//        total_SFC = i_nSFC;
         if(debug)cout<<"\t[Orig. SFCs Data Reading Completed] SFCs:"<<allSFC.size()-1;
     }else{
         string errorMsg = "Invalid Input File Values. File "+filepathExt+ ". Function: ";
@@ -269,4 +262,4 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
 }
 
 
-#endif //SFC_PARALLELIZATION_FILEREADINGFUNCTIONS_H
+#endif //SFC_PARALLELIZATION_FILEFUNCTIONS_H

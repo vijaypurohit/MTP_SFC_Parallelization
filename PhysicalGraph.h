@@ -4,10 +4,10 @@
 #define SFC_PARALLELIZATION_PHYSICALGRAPH_H
 
 /*!
- * Store Resources Values
+ * Store Resources Values, number of physical+virtual cores,  memory in GB, disk space, CPU speed
  * @tparam type_res resource data type. default=unsigned int.
  */
-template <class type_res =unsigned int>
+template <class type_res>
 class NodeCapacity
 {
 public:
@@ -27,13 +27,13 @@ public:
 };
 
 /*!
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type.
  */
-template <class type_res =unsigned int>
+template <class type_res >
 class PhysicalNode{
 public:
     /// \brief physical node index. Type int.
-    unsigned int index{}; string name; ///< physical node name
+    unsigned int index{}; string name{}; ///< physical node name
     NodeCapacity<type_res> capacity; /*!< capacity of the node. Type NodeCapacity. */
     unordered_set<unsigned int> pn2VMs; /*!< list of VM index present in the physical machine. */
     /*!
@@ -49,7 +49,7 @@ public:
 };
 
 /*!
- * @tparam type_wgt edge weight data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
  */
 template <class type_wgt = unsigned int>
 struct PhysicalEdge
@@ -69,23 +69,22 @@ struct PhysicalEdge
 };
 
 /*!
- *
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * Physical Graph Class for Network Creation
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
-template <class type_wgt = unsigned int, class type_res =unsigned int>
+template <class type_wgt, class type_res>
 class PhysicalGraph {
     unsigned int numV, numE; /*!< numV=number of vertices, numE=number of edges  */
     unsigned int srcV; ///<source vertex. default 1, loop from 1 to <= numVertexes
 public:
-
     unordered_map<unsigned int, PhysicalNode<type_res>*> PNode; ///< index to Physical Node address
     vector<PhysicalEdge<type_wgt> *> *adj; ///< adjacency list[u] = {v1,wt1}->{v2,wt2}
-    vector<vector<type_wgt>> mat /*!< adjacency Matrix original distances. in Meters. max distance 2*Radius of Earth = 12756000 meters,*/; vector<vector<type_wgt>> dist; ///<distance Matrix calculated using all pairs shortest path
+    vector<vector<type_wgt>> mat /*!< adjacency Matrix original distances. in Meters. max distance 2*Radius of Earth = 12756000 meters,*/;
+    vector<vector<type_wgt>> dist; ///<distance Matrix calculated using all pairs shortest path
     vector<vector<unsigned int>> nextHop; ///< nextHop of distance Matrix
     type_wgt TypeMaxValue = std::numeric_limits<type_wgt>::max(); /*!< max Value of the data type. \n float: 3.40282e+38 or 0x1.fffffep+127 \n size_t: 18446744073709551615 or 0xffffffffffffffff.*/
     type_wgt EPS = std::numeric_limits<type_wgt>::epsilon();/*!< EPS Returns the machine epsilon, that is, the difference between 1.0 and the next value representable by the floating-point type T. \n It is only meaningful if std::numeric_limits<T>::is_integer == false. \n double	= DBL_EPSILON, float = FLT_EPSILON, unsigned int = 0 */
-
 
     /*! Physical Graph Constructor
      * @param _numVertexes Number of vertexes in network (1-based Indexing)
@@ -105,6 +104,10 @@ public:
             for (const auto edge: adj[v]) delete edge; /// delete all edges
             delete PNode.at(v); /// delete nodes
         }
+//        for(const auto pnInfo: PNode){
+//            for (const auto edge: adj[pnInfo.second->index]) delete edge; /// delete all edges
+//            delete pnInfo.second;
+//        }
         delete[] adj; // delete entire adj list
         if (debug) cout << "\n[PhysicalGraph Destructor Completed for G(" << numV<<", "<<numE<<")]";
     }
@@ -121,9 +124,9 @@ public:
         numE = val;
     }
 
-    [[maybe_unused]] void setNumOfNodes(const unsigned int val){
-        numV = val;
-    }
+//    void setNumOfNodes(const unsigned int val){
+//        numV = val;
+//    }
     void addEdge(PhysicalEdge<type_wgt> *);
     void calcAllPairsShortestPath();
 
@@ -132,11 +135,11 @@ public:
 
 /*!
  * Show Network Adjacency List in console.
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
 template <class type_wgt, class type_res>
-[[maybe_unused]] void PhysicalGraph<type_wgt,type_res>::showAdjList()const {
+void PhysicalGraph<type_wgt,type_res>::showAdjList()const {
     cout << "\n\n Adjacency List G(" << numV<<", "<<numE<<") ::";
     for (unsigned int v = srcV; v <= numV; ++v) {
         cout << "\n V["<< v << "]:";
@@ -147,11 +150,11 @@ template <class type_wgt, class type_res>
 
 /*!
  * Show Network Adjacency Matrix in console.
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
 template <class type_wgt, class type_res>
-[[maybe_unused]] void PhysicalGraph<type_wgt,type_res>::showAdjMatrix() const{
+void PhysicalGraph<type_wgt,type_res>::showAdjMatrix() const{
     cout << "\n\n ----- Adjacency Matrix of G(" << numV<<", "<<numE<<") ::";
     cout<<"\nV:\t";  for (unsigned int v = srcV; v <= numV; ++v)  cout <<v<< "\t"; cout<<endl;
     for (unsigned int v = 0; v <= numV; ++v) cout <<"---"<< "\t";
@@ -163,8 +166,8 @@ template <class type_wgt, class type_res>
 }
 
 /*! Show all the Nodes and their description
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
 template <class type_wgt, class type_res>
 void PhysicalGraph<type_wgt,type_res>::showPNs_Description(){
@@ -182,11 +185,11 @@ void PhysicalGraph<type_wgt,type_res>::showPNs_Description(){
 }
 /*!
  * Show Network Adjacency Matrix in console After calculating All Pairs Shortest Path.
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
 template <class type_wgt, class type_res>
-[[maybe_unused]] void PhysicalGraph<type_wgt,type_res>::showAllPairsShortestPath() const{
+void PhysicalGraph<type_wgt,type_res>::showAllPairsShortestPath() const{
     cout << "\n\n All Pairs Shortest Path G(" << numV<<", "<<numE<<") ::";
     cout<<"\nV:\t";  for (unsigned int v = srcV; v <= numV; ++v)  cout <<v<< "\t"; cout<<endl;
     for (unsigned int v = 0; v <= numV; ++v) cout <<"---"<< "\t";
@@ -213,11 +216,11 @@ template <class type_wgt, class type_res>
 
 /*!
  * Print Network Graph using Graphviz in a PNG format
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
 template <class type_wgt, class type_res>
-[[maybe_unused]] [[maybe_unused]] void PhysicalGraph<type_wgt,type_res>::printPhysicalGraph(const string& testDirName) const{
+[[maybe_unused]] void PhysicalGraph<type_wgt,type_res>::printPhysicalGraph(const string& testDirName) const{
     if (mat.empty()) {
         cout << "Network Graph is Empty."<<endl;
         return;
@@ -312,8 +315,8 @@ template <class type_wgt, class type_res>
 /*!
  * Add undirected edge to graph adjacency list and matrix.
  * @param edge pointer of structure Physical Edge.
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
 template <class type_wgt, class type_res>
 void PhysicalGraph<type_wgt,type_res>::addEdge(PhysicalEdge<type_wgt>* edge) {
@@ -326,8 +329,8 @@ void PhysicalGraph<type_wgt,type_res>::addEdge(PhysicalEdge<type_wgt>* edge) {
  * Calculates All Pairs Shortest Path using adjacency matrix
  * @param mat adjacency matrix
  * @param dist updates distance matrix and @param nextHop updates matrix to take next vertex for shortest path.
- * @tparam type_wgt edge weight data type. default=unsigned int.
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_wgt edge weight data type.
+ * @tparam type_res resource data type.
  */
 template <class type_wgt, class type_res>
 void PhysicalGraph<type_wgt,type_res>::calcAllPairsShortestPath()
@@ -342,7 +345,7 @@ void PhysicalGraph<type_wgt,type_res>::calcAllPairsShortestPath()
                 dist[i][j] = 0;
                 nextHop[i][j] = j;
             }
-            else if(mat[i][j] != mat[0][0]){ //mat[0][0] is zero 0.
+            else if(mat[i][j] != 0){ //mat[0][0] is zero 0.
                 dist[i][j] = mat[i][j];
                 nextHop[i][j] = j;
             }

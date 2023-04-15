@@ -6,21 +6,19 @@
 #define SFC_PARALLELIZATION_VIRTUALNETWORKFUNCTIONS_H
 /*!
  * Virtual Network Function Node
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type.
  */
-template <class type_res =unsigned int>
+template <class type_res >
 class VNFNode
 {
 public:
     unsigned int index  /*! physical node index. Type int.*/;  string name /*! node name  */;
     unsigned int numInstances; ///< number of instances of vnf.
-    float serviceRate; ///< rate of service of vnf. in packets per second. arrival rate < service rate.
-    float executionTime; ///< time taken to execute the particular function
+    type_delay serviceRate; ///< rate of service of vnf. in packets per second. arrival rate < service rate.
+    type_delay executionTime; ///< time taken to execute the particular function
     NodeCapacity<type_res> requirement; ///<  requirements  of the VM node. Type NodeCapacity.
 
-    //unordered_map<unsigned int,pair<unsigned int,unsigned int>> inst2nw; ///< collecting information for each VNF node that what are its instances and where are they hosted {vmid, pnid} {vnf ke instance id (1-based) --> {VM_id, PN_id};
-
-    VNFNode(unsigned int _index, const string& _name,unsigned int _instance, float _serviceRate, float _execTime, NodeCapacity<type_res> _givenRequirements): requirement(_givenRequirements){
+    VNFNode(unsigned int _index, const string& _name,unsigned int _instance, type_delay _serviceRate, type_delay _execTime, NodeCapacity<type_res> _givenRequirements): requirement(_givenRequirements){
         this->index = _index; this->name = _name; this->numInstances = _instance;
         this->serviceRate = _serviceRate; this->executionTime = _execTime;
     }
@@ -29,9 +27,9 @@ public:
 
 /*!
  * Virtual Network Function Collection Data
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type.
  */
-template <class type_res =unsigned int>
+template <class type_res >
 class VirtualNetworkFunctions
 {
     unsigned int numParallelPairs{}; //< count of number of pairs which are parallel
@@ -41,14 +39,15 @@ public:
     unordered_map<unsigned int,unordered_set<unsigned int>> parallelPairs; ///< {i_vnfid ->{j_vnfid it is parallel to}} pairs identifying which are parallel
 
     unordered_map<unsigned int, unordered_map<unsigned int, unsigned int>> I_VNFinst2VM; ///< VNF {type,inst} is hosted on which VM. {VNFid -> {instid -> VM id}} ie. arr[vnf][inst]=vmid;, inst->1based indexing
-    unordered_map<unsigned int, unordered_map<unsigned int, float>> utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}}
+//    unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}}
+    unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> seq_utilization, par_utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}} for sequential and parallel chain
+
     /*! @param _numVirtualNetworkFunctions number of VNFs */
-    explicit VirtualNetworkFunctions(unsigned int _numVirtualNetworkFunctions)
-    {
+    explicit VirtualNetworkFunctions(unsigned int _numVirtualNetworkFunctions) {
         srcVNF = 1;
         this->numVNF = _numVirtualNetworkFunctions;
-//        I_VNFinst2VM = vector<vector<unsigned int>>(numVNF + 1);
     }
+
     ~VirtualNetworkFunctions(){
 //        for (unsigned int v = srcVNF; v <= numVNF; ++v) { //deletion of Adj List Edges
 //            delete VNFNodes[v]; // delete mapping
@@ -66,10 +65,12 @@ public:
     void Algorithm_NF_Parallelism_Identification();
 
     void findRandomParallelPairs(const string&);
+
+    void showVNFs_Utilization(const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> &);
 };
 
 /*! Show all the Virtual Machine nodes and their description
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type.
  */
 template <class type_res>
 void VirtualNetworkFunctions<type_res>::showVNFs_Description(){
@@ -91,11 +92,28 @@ void VirtualNetworkFunctions<type_res>::showVNFs_Description(){
     }
 }
 
+/*! Show Utiliztion of the VNFs
+ * @param util sequential or parallel
+ */
+ template <class type_res>
+ void VirtualNetworkFunctions<type_res>::showVNFs_Utilization(const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& util){
+
+     for (unsigned int u = srcVNF; u <= numVNF; ++u){
+         const VNFNode<type_res> *vnfInfo = VNFNodes.at(u);
+         for(unsigned int inst = 1; inst <=vnfInfo->numInstances; inst++){
+             cout<<"[f"<<vnfInfo->index<<char(96+inst)<<": ";
+             if(util.count(vnfInfo->index) and util.at(vnfInfo->index).count(inst))
+                cout<< util.at(vnfInfo->index).at(inst) <<" ("<<(util.at(vnfInfo->index).at(inst)/vnfInfo->serviceRate)*100<<")";
+             else cout<<"0 (0)";
+             cout<<"]\t";
+         }cout<<"\n";
+     }
+ }
  /*
  * @param vnfIndex VNF index
  * @param vmIndex Virtual Machine Index
  * @param instance Index of the VNF type instance 1,2,3 (1-based indexing)
- * @tparam type_res resource data type. default=unsigned int.
+ * @tparam type_res resource data type. .
  */
 template <class type_res>
 void VirtualNetworkFunctions<type_res>::assignVNFinstToVM(int vnfIndex, int instance, int vmIndex){
@@ -114,7 +132,7 @@ void VirtualNetworkFunctions<type_res>::findRandomParallelPairs(const string& te
      {
          numParallelPairs = 44;
          parallelPairs={{1,{2,3,7,9,10}},
-         {2,{1,6,7,10}},
+         {2,{1,4,6,7,10}},
          {3,{4,5,6,7,8}},
          {4,{1,6,3,8,9}},
          {5,{1,2,6,7,8}},
@@ -179,24 +197,24 @@ void VirtualNetworkFunctions<type_res>::findRandomParallelPairs(const string& te
      */
 template <class type_res>
 void VirtualNetworkFunctions<type_res>::Algorithm_NF_Parallelism_Identification(){
+
+     struct pktFields{
+         unordered_map<int, int> info{};
+         explicit pktFields(unordered_map<int, int> x){  info = std::move(x);  }
+     };
+
     enum {R=1, W=2, RW=2, T=3};
     enum {SIP=1, DIP, SPORT, DPORT, Payload, AddRm, Drop};
     enum {NOT_PARALLELIZABLE=-1, PARALLELIZABLE_NO_COPY=1, PARALLELIZABLE_WITH_COPY=2};
 
-
-    unordered_map<int, unordered_map<int,int>> DepTable ={
+    const unordered_map<int, unordered_map<int,int>> DepTable ={
             {R,     {{R, PARALLELIZABLE_NO_COPY},{W, PARALLELIZABLE_NO_COPY}, {AddRm, PARALLELIZABLE_NO_COPY},  {Drop, PARALLELIZABLE_NO_COPY}} },
             {W,     {{R, NOT_PARALLELIZABLE},   {W, PARALLELIZABLE_NO_COPY},  {AddRm, PARALLELIZABLE_NO_COPY},  {Drop, PARALLELIZABLE_NO_COPY}} },
             {AddRm, {{R, NOT_PARALLELIZABLE},   {W, NOT_PARALLELIZABLE},        {AddRm, PARALLELIZABLE_NO_COPY},  {Drop, PARALLELIZABLE_NO_COPY}} },
             {Drop,  {{R, NOT_PARALLELIZABLE},   {W, NOT_PARALLELIZABLE},        {AddRm, NOT_PARALLELIZABLE},        {Drop, PARALLELIZABLE_NO_COPY}} }
     };
 
-    struct pktFields{
-        unordered_map<int, int> info;
-        explicit pktFields(unordered_map<int, int> x){  info = std::move(x);  }
-    };
-  
-    int n = 11; // number of VNF
+    int n = 12; // number of VNF
     vector<pktFields*> vnfPktInfo(n+1);
     vnfPktInfo[1] = new pktFields({{SIP, R}, {DIP, R}, {SPORT, R}, {DPORT, R}, {Drop, T}});
     vnfPktInfo[2] = new pktFields({{SIP, R}, {DIP, R}, {SPORT, R}, {DPORT, R}, {Payload, R}});
@@ -209,42 +227,33 @@ void VirtualNetworkFunctions<type_res>::Algorithm_NF_Parallelism_Identification(
     vnfPktInfo[9] = new pktFields({{Payload, RW}});
     vnfPktInfo[10] = new pktFields({});
     vnfPktInfo[11] = new pktFields({{SIP,   R}, {DIP,   R}, {SPORT, R}, {DPORT, R}});
+    vnfPktInfo[12] = new pktFields({{SIP,   R}, {DIP,   W}, {SPORT, R}, {DPORT, W}});
  
     // iterating all possible pairs
     int cnt=0;
     for(int i_vnf=1; i_vnf<=n; i_vnf++){
         for(int j_vnf=1; j_vnf<=n; j_vnf++){
             if(i_vnf==j_vnf)continue; // same vnf id
-            bool canBeParallelized = true; 
-            vector<pair<int,int>> conflictingActions; ///<  existence indicates the necessity of packet copying
-
+            bool canBeParallelized = true;
             // for each field in packet 1
             for(auto &[al1_field_name, al1_field_val]:  vnfPktInfo[i_vnf]->info){
                 // if field exist in 2nd packet
                 if(vnfPktInfo[j_vnf]->info.count(al1_field_name)){
-
                     int al2_field_val = vnfPktInfo[j_vnf]->info[al1_field_name];
-//                    if((al1_field_val == R or al1_field_val==W ) and (al2_field_val==W)){
-//                        conflictingActions.push_back({al1_field_name, al2_field_val});
-//                    }
-//                    else {
                         switch (DepTable[al1_field_val][al2_field_val]) {
                             case NOT_PARALLELIZABLE: canBeParallelized = false; break;
                             case PARALLELIZABLE_NO_COPY: continue;
                             case PARALLELIZABLE_WITH_COPY:
-//                                conflictingActions.push_back({al1_field_name, al2_field_val});
                                 canBeParallelized = false; break;
                                 break;
                         }
-//                    }
                 }
                 if(!canBeParallelized) break;
             } // foreach
             if(canBeParallelized)cnt++;
-            cout<<"\n"<<cnt<<"["<<i_vnf<<":"<<j_vnf<<"] : canBeParallelized:"<<canBeParallelized <<" conflicting:"<<conflictingActions.size();
+            cout<<"\n"<<cnt<<"["<<i_vnf<<":"<<j_vnf<<"] : canBeParallelized:"<<canBeParallelized;
         }// for j
     }// for i
-
 }
 
 #endif //SFC_PARALLELIZATION_VIRTUALNETWORKFUNCTIONS_H
