@@ -8,7 +8,7 @@
  * Virtual Network Function Node
  * @tparam type_res resource data type.
  */
-template <class type_res >
+template <class type_res>
 class VNFNode
 {
 public:
@@ -29,20 +29,23 @@ public:
  * Virtual Network Function Collection Data
  * @tparam type_res resource data type.
  */
-template <class type_res >
+template <class type_res>
 class VirtualNetworkFunctions
 {
     unsigned int numParallelPairs{}; //< count of number of pairs which are parallel
-    unsigned int numVNF{}  /*!<  number of unique type of VNFs  */; unsigned int srcVNF /*!< starting VNF to iterate the loop*/;
 public:
+    unsigned int numVNF{}  /*!<  number of unique type of VNFs  */; unsigned int srcVNF /*!< starting VNF to iterate the loop*/;
     unordered_map<unsigned int, VNFNode<type_res>*> VNFNodes; ///<Index to VNF structure
+    unordered_map<unsigned int, vector<unsigned int>> cntVNF; ///< VNFs Type are present in what SFCs Requests (sfc vector idx).
+
     unordered_map<unsigned int,unordered_set<unsigned int>> parallelPairs; ///< {i_vnfid ->{j_vnfid it is parallel to}} pairs identifying which are parallel
 
     unordered_map<unsigned int, unordered_map<unsigned int, unsigned int>> I_VNFinst2VM; ///< VNF {type,inst} is hosted on which VM. {VNFid -> {instid -> VM id}} ie. arr[vnf][inst]=vmid;, inst->1based indexing
-//    unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}}
-    unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> seq_utilization, par_utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}} for sequential and parallel chain
 
-    /*! @param _numVirtualNetworkFunctions number of VNFs */
+    unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> seq_utilization, ppar_utilization, fullpar_utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}} for sequential and parallel chain
+//    unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}}
+
+     /*! @param _numVirtualNetworkFunctions number of VNFs */
     explicit VirtualNetworkFunctions(unsigned int _numVirtualNetworkFunctions) {
         srcVNF = 1;
         this->numVNF = _numVirtualNetworkFunctions;
@@ -64,10 +67,12 @@ public:
 
     void Algorithm_NF_Parallelism_Identification();
 
-    void findRandomParallelPairs(const string&);
+    void findRandomParallelPairs(const string&, int = 1);
 
-    void showVNFs_Utilization(const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> &);
-};
+
+     void showVNFs_Utilization(const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> &util, int type);
+ };
+
 
 /*! Show all the Virtual Machine nodes and their description
  * @tparam type_res resource data type.
@@ -96,8 +101,13 @@ void VirtualNetworkFunctions<type_res>::showVNFs_Description(){
  * @param util sequential or parallel
  */
  template <class type_res>
- void VirtualNetworkFunctions<type_res>::showVNFs_Utilization(const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& util){
-
+ void VirtualNetworkFunctions<type_res>::showVNFs_Utilization(const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& util, int type){
+     if(type == 0)
+         cout<<"\nSequential SFC Utilization::\n";
+     else if(type == 1)
+         cout<<"\nFully Parallel SFC Utilization::\n";
+     else
+        cout<<"\nPartial Parallel SFC Utilization::\n";
      for (unsigned int u = srcVNF; u <= numVNF; ++u){
          const VNFNode<type_res> *vnfInfo = VNFNodes.at(u);
          for(unsigned int inst = 1; inst <=vnfInfo->numInstances; inst++){
@@ -127,26 +137,37 @@ void VirtualNetworkFunctions<type_res>::assignVNFinstToVM(int vnfIndex, int inst
  * @param testDirName  path to the current test directory which consists of inputs files
  */
 template <class type_res>
-void VirtualNetworkFunctions<type_res>::findRandomParallelPairs(const string& testDirName){
+void VirtualNetworkFunctions<type_res>::findRandomParallelPairs(const string& testDirName, const int observation){
 
      {
-         numParallelPairs = 44;
-         parallelPairs={{1,{2,3,7,9,10}},
-         {2,{1,4,6,7,10}},
-         {3,{4,5,6,7,8}},
-         {4,{1,6,3,8,9}},
-         {5,{1,2,6,7,8}},
-         {6,{2,4}},
-         {7,{2,4,6,9,10}},
-         {8,{3,7,9}},
-         {9,{1,3,7,10}},
-         {10,{3,6,9}}};
+//         numParallelPairs = 44;
+//         parallelPairs={{1,{2,3,7,9,10}},
+//         {2,{1,4,6,7,10}},
+//         {3,{4,5,6,7,8}},
+//         {4,{1,6,3,8,9}},
+//         {5,{1,2,6,7,8}},
+//         {6,{2,4}},
+//         {7,{2,4,6,9,10}},
+//         {8,{3,7,9}},
+//         {9,{1,3,7,10}},
+//         {10,{3,6,9}}};
+         numParallelPairs = 51;
+         parallelPairs={{1,{3,4,6,7,8,9,}},
+         {2,{3,8,9,}},
+         {3,{1,2,4,5,7,8,9,10,}},
+         {4,{3,5,6,8,10,}},
+         {5,{2,4,6,8,}},
+         {6,{1,3,5,7,8,9,10,}},
+         {7,{1,3,5,6,8,10,}},
+         {8,{1,2,3,7,}},
+         {9,{1,2,3,5,6,7,10,}},
+         {10,{3,}}};
          if(debug)cout<<"\n\t[Random Parallel Pairs: "<<numParallelPairs<<" | "<<(100.0*numParallelPairs/(numVNF*(numVNF-1)))<<" % out of Total:"<<numVNF*(numVNF-1)<<" pairs]";
      }
      return;
 
      ofstream fout;
-     string filepathExt = output_directory+testDirName+filename_vnf_parallelpairs;///< path to .gv file without extention
+     string filepathExt = output_directory+testDirName+"obs_"+to_string(observation)+"_"+filename_vnf_parallelpairs;///< path to .gv file without extention
      fout.open(filepathExt.c_str(), ios::out);
      if (!fout) {
          string errorMsg = "File "+filepathExt+ " failed to open. Function: ";
@@ -159,6 +180,7 @@ void VirtualNetworkFunctions<type_res>::findRandomParallelPairs(const string& te
     std::uniform_int_distribution<unsigned int> rd_distribution(0, 1);      ///< for selecting operation Parallel/Not Parallel
     // iterating all possible pairs
 
+//    parallelPairs.clear();
     numParallelPairs=0;
     for(int i_vnf=1; i_vnf<=numVNF; i_vnf++) {
         fout<<"\n{"<<i_vnf<<",{";
@@ -173,7 +195,8 @@ void VirtualNetworkFunctions<type_res>::findRandomParallelPairs(const string& te
         fout<<"}},";
     }// i
     fout.close();
-     if(debug)cout<<"\n\t[Random Parallel Pairs: "<<numParallelPairs<<" | "<<(100.0*numParallelPairs/(numVNF*(numVNF-1)))<<" % out of Total:"<<numVNF*(numVNF-1)<<" pairs]";
+    if(debug)cout<<"\n\tRandom Parallel Pairs: "<<(100.0*numParallelPairs/(numVNF*(numVNF-1)))<<"% | "<<numParallelPairs<<" out of "<<numVNF*(numVNF-1)<<" pairs.";
+
      /* // to output in console in given map structure
       * cout<<"\n{";
      for(const auto& i_vnf: parallelPairs){

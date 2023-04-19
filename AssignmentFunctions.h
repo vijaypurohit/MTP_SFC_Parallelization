@@ -54,7 +54,7 @@ void assign_VNF_2_InstancesCnt(const vector<pair<unsigned int,unsigned int>>& VN
 template<typename type_res>
 void assign_ForSFC_VNFType_2_InstID( const vector<pair<int,int>>& mapping, ServiceFunctionChain* cSFC, VirtualNetworkFunctions<type_res> *VNFNetwork){
     for(const auto& [fnType, fnInstId]: mapping){
-        VNFNetwork->par_utilization[fnType][fnInstId] += cSFC->trafficArrivalRate;
+        VNFNetwork->ppar_utilization[fnType][fnInstId] += cSFC->trafficArrivalRate;
         VNFNetwork->seq_utilization[fnType][fnInstId] += cSFC->trafficArrivalRate;
 
     }

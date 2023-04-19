@@ -29,7 +29,7 @@ public:
 /*!
  * @tparam type_res resource data type.
  */
-template <class type_res >
+template <class type_res>
 class PhysicalNode{
 public:
     /// \brief physical node index. Type int.
@@ -51,7 +51,7 @@ public:
 /*!
  * @tparam type_wgt edge weight data type.
  */
-template <class type_wgt = unsigned int>
+template <class type_wgt>
 struct PhysicalEdge
 {
     /*! @param u edge source physical node index,  @param v edge destination physical node index  */
@@ -75,9 +75,9 @@ struct PhysicalEdge
  */
 template <class type_wgt, class type_res>
 class PhysicalGraph {
+public:
     unsigned int numV, numE; /*!< numV=number of vertices, numE=number of edges  */
     unsigned int srcV; ///<source vertex. default 1, loop from 1 to <= numVertexes
-public:
     unordered_map<unsigned int, PhysicalNode<type_res>*> PNode; ///< index to Physical Node address
     vector<PhysicalEdge<type_wgt> *> *adj; ///< adjacency list[u] = {v1,wt1}->{v2,wt2}
     vector<vector<type_wgt>> mat /*!< adjacency Matrix original distances. in Meters. max distance 2*Radius of Earth = 12756000 meters,*/;
@@ -374,7 +374,7 @@ void PhysicalGraph<type_wgt,type_res>::calcAllPairsShortestPath()
             }
         }
     }
-    if(debug)cout<<"\n\t[All Pairs Shortest Path Completed]";
+    if(debug)cout<<"\n\t[Calculated All Pairs Shortest Path]";
 }
 
 

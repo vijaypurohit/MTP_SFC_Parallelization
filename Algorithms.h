@@ -465,7 +465,7 @@ void enumerate_InstanceCombination_CalcDelay(unsigned int stgid, unordered_map<u
         for(const auto& [fnType, fnInstId]: instComb) {
             curMapping[fnType] = fnInstId;
         }
-        enumerate_InstanceCombination_CalcDelay(stgid+1,curMapping, curBstMapping, minBstDelay, partParSFC, stg2InstCombinations, oldUtilization, cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork, showInConsoleDetailed);
+        enumerate_InstanceCombination_CalcDelay<type_wgt, type_res>(stgid+1,curMapping, curBstMapping, minBstDelay, partParSFC, stg2InstCombinations, oldUtilization, cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork, showInConsoleDetailed);
     }
 }//enumerate_InstanceCombination_CalcDelay
 
@@ -480,8 +480,8 @@ void enumerate_InstanceCombination_CalcDelay(unsigned int stgid, unordered_map<u
  * @param showInConsoleDetailed print of each step in the console
  */
 template<typename type_wgt, typename type_res>
-int partialChains_Sequential_Deployment(optimalResult& sol_partial, const vector<vector<unsigned int>>& seqSFC, ServiceFunctionChain * const cSFC, VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork,
-                                          bool showInConsole = false, bool showInConsoleDetailed = false) {//partialChains_Sequential_Deployment
+int partialChains_Sequential_Deployment(sfcResult& sol_partial, const vector<vector<unsigned int>>& seqSFC, ServiceFunctionChain * const cSFC, VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork,
+                                        bool showInConsole = false, bool showInConsoleDetailed = false) {//partialChains_Sequential_Deployment
         
     const unsigned int szStages = seqSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
@@ -509,13 +509,13 @@ int partialChains_Sequential_Deployment(optimalResult& sol_partial, const vector
 
     /*! finding all the mapping possibilites for the current partParSFC instance combination at each stage.*/
     unordered_map<unsigned int,unsigned int> curMapping; ///< iterating mapping variable
-    enumerate_InstanceCombination_CalcDelay<type_wgt, type_res>(0, curMapping,  sol_partial.seq_fninstmap, sol_partial.seq_delay, seqSFC ,stg2InstCombinations, VNFNetwork->seq_utilization, cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
+    enumerate_InstanceCombination_CalcDelay<type_wgt, type_res>(0, curMapping,  sol_partial.seq_fninstmap, sol_partial.seq_delay, seqSFC ,stg2InstCombinations, VNFNetwork->seq_utilization, cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);//, showInConsoleDetailed
     sol_partial.seq_pid = 0;
     for(const auto& [fn, fninst]: sol_partial.seq_fninstmap){
         VNFNetwork->seq_utilization[fn][fninst] += cSFC->trafficArrivalRate;
     }
     if(showInConsole){
-        cout<<"\n PartialEnumeration: SFC["<<cSFC->index<<"]\t Sequential: partIdx["<<sol_partial.seq_pid<<"]  delay:["<<sol_partial.seq_delay<<"] :";
+        cout<<"\n PartialEnumeration: SFC["<<cSFC->index<<"]   Seq: idx["<<sol_partial.seq_pid<<"]  delay:["<<sol_partial.seq_delay<<"] :";
         for(const auto &blk: cSFC->allPartParSFC[sol_partial.seq_pid]) {
             cout<<"[";  for(const auto& fnid: blk){
                 cout<<fnid<<char(96+sol_partial.seq_fninstmap.at(fnid))<<" ";
@@ -524,6 +524,52 @@ int partialChains_Sequential_Deployment(optimalResult& sol_partial, const vector
     }
     return algosuccess;
 }//partialChains_Sequential_Deployment
+
+template<typename type_wgt, typename type_res>
+int partialChains_FullParallel_Deployment(sfcResult& sol_partial, const vector<vector<unsigned int>>& fullParSFC, ServiceFunctionChain * const cSFC, VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork,
+                                        bool showInConsole = false, bool showInConsoleDetailed = false) {//partialChains_FullParallel_Deployment
+
+    const unsigned int szStages = fullParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
+
+    /*! level to Instances Combinations = set of instance combination in block/stage/level index j. {stgid -> 2d{ 1d instances combinations{pair<fun, inst>}  }} */
+    unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> > stg2InstCombinations;
+    for(unsigned int stgid=0; stgid<szStages; stgid++){      // finding instances possibilities of each stage.
+        const auto& curStg = fullParSFC[stgid];
+        vector<pair<unsigned int,unsigned int>> curInstComb;
+        construct_stageInstanceCombination<type_res>(0, curInstComb, stgid, curStg, stg2InstCombinations, VNFNetwork->fullpar_utilization, cSFC, VNFNetwork);
+        if(stg2InstCombinations.find(stgid) == stg2InstCombinations.end()){
+            sol_partial.fullpar_pid = noResDueToNoStg;
+            return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
+        }
+    }//stgid<szStages finding instances possibilities of each stage.
+
+    if(showInConsoleDetailed){ // showing partParSFC info
+        cout<<"\n fullParSFC:"; for(const auto& blks: fullParSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<") ---------- - --------- - ------";
+        for(int cur_lvl=0; cur_lvl<szStages; cur_lvl++){  // showing stage wise combination
+            cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2InstCombinations[cur_lvl].size()<<") { ";
+            for(const auto& instComb: stg2InstCombinations[cur_lvl]){
+                cout<<"[";  for(const auto& givenPair: instComb){  cout<<""<<givenPair.first<<char(givenPair.second-1+'a')<<" "; } cout<<"]";
+            }  cout<<" }";
+        }
+    }// show stages wise instances combination
+
+    /*! finding all the mapping possibilites for the current partParSFC instance combination at each stage.*/
+    unordered_map<unsigned int,unsigned int> curMapping; ///< iterating mapping variable
+    enumerate_InstanceCombination_CalcDelay<type_wgt, type_res>(0, curMapping,  sol_partial.fullpar_fninstmap, sol_partial.fullpar_delay, fullParSFC ,stg2InstCombinations, VNFNetwork->fullpar_utilization, cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);//, showInConsoleDetailed
+    sol_partial.fullpar_pid = cSFC->allPartParSFC.size()-1;
+    for(const auto& [fn, fninst]: sol_partial.fullpar_fninstmap){
+        VNFNetwork->fullpar_utilization[fn][fninst] += cSFC->trafficArrivalRate;
+    }
+    if(showInConsole){
+        cout<<"\n PartialEnumeration: SFC["<<cSFC->index<<"]   fullpar: idx["<<sol_partial.fullpar_pid<<"]  delay:["<<sol_partial.fullpar_delay<<"] :";
+        for(const auto &blk: cSFC->allPartParSFC[sol_partial.fullpar_pid]) {
+            cout<<"[";  for(const auto& fnid: blk){
+                cout<<fnid<<char(96+sol_partial.fullpar_fninstmap.at(fnid))<<" ";
+            }   cout<<"]";
+        }
+    }
+    return algosuccess;
+}//partialChains_FullParallel_Deployment
 
 /*! For a given SFC and its all partial parallel function, find all the possibile instances (brute force).
  * Intance deployment is based on min delay of the path.
@@ -536,13 +582,15 @@ int partialChains_Sequential_Deployment(optimalResult& sol_partial, const vector
  * @param showInConsoleDetailed print of each step in the console
  */
 template<typename type_wgt, typename type_res>
-bool partialChains_Parallel_Deployment(optimalResult& sol_partial, ServiceFunctionChain * const cSFC, VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork,
-                                          bool showInConsole = false, bool showInConsoleDetailed = false) {//partialChains_Parallel_Deployment
+bool partialChains_PartParallel_Deployment(sfcResult& sol_partial, ServiceFunctionChain * const cSFC, VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork,
+                                       bool showInConsole = false, bool showInConsoleDetailed = false) {//partialChains_PartParallel_Deployment
  
     type_delay bst_partpar_delay = std::numeric_limits<type_delay>::max();
     //    vector<vector<unsigned int>> partParSFC = {{1},{6,4},{5}} ;
     for(int ppsidx=int( cSFC->allPartParSFC.size())-1; ppsidx>=0; --ppsidx){ /*! For each partial parallel SFC without src and dest block/stage.*/
         /*! {{1},{6,4},{5}}; Each Partial SFC is without src and dest block/stage. */
+        cout<<"\r\t\t\t("<<cSFC->allPartParSFC.size()-ppsidx<<"/"<<cSFC->allPartParSFC.size()<<")"; //showing progress
+
         const vector<vector<unsigned int>>& partParSFC=cSFC->allPartParSFC.at(ppsidx); ///< for each of the partial parallel SFC of the givenParVNF Blocks
         const unsigned int szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
@@ -551,9 +599,9 @@ bool partialChains_Parallel_Deployment(optimalResult& sol_partial, ServiceFuncti
         for(unsigned int stgid=0; stgid<szStages; stgid++){      // finding instances possibilities of each stage.
             const auto& curStg = partParSFC[stgid];
             vector<pair<unsigned int,unsigned int>> curInstComb;
-            construct_stageInstanceCombination<type_res>(0, curInstComb, stgid, curStg, stg2InstCombinations, VNFNetwork->par_utilization, cSFC, VNFNetwork);
+            construct_stageInstanceCombination<type_res>(0, curInstComb, stgid, curStg, stg2InstCombinations, VNFNetwork->ppar_utilization, cSFC, VNFNetwork);
             if(stg2InstCombinations.find(stgid) == stg2InstCombinations.end()){
-                sol_partial.par_pid = noResDueToNoStg;
+                sol_partial.ppar_pid = noResDueToNoStg;
                 return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
             }
         }//stgid<szStages finding instances possibilities of each stage.
@@ -571,30 +619,31 @@ bool partialChains_Parallel_Deployment(optimalResult& sol_partial, ServiceFuncti
 
         /*! finding all the mapping possibilites for the current partParSFC instance combination at each stage.*/
         unordered_map<unsigned int,unsigned int> curMapping; ///< iterating mapping variable 
-        enumerate_InstanceCombination_CalcDelay<type_wgt, type_res>(0, curMapping,  sol_partial.par_fninstmap, bst_partpar_delay, partParSFC, stg2InstCombinations, VNFNetwork->par_utilization, cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
-        if(bst_partpar_delay < sol_partial.par_delay ){
-            sol_partial.par_pid = ppsidx;
-            sol_partial.par_delay = bst_partpar_delay;
+        enumerate_InstanceCombination_CalcDelay<type_wgt, type_res>(0, curMapping, sol_partial.ppar_fninstmap, bst_partpar_delay, partParSFC, stg2InstCombinations, VNFNetwork->ppar_utilization, cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
+        if(bst_partpar_delay < sol_partial.ppar_delay ){
+            sol_partial.ppar_pid = ppsidx;
+            sol_partial.ppar_delay = bst_partpar_delay;
         } 
 
     }// for each PartParSFC ppsidx.
  
-    if(sol_partial.par_pid == noResPar){
+    if(sol_partial.ppar_pid == noResPar){
         return algostopped;
     }
-    for(const auto& [fn, fninst]: sol_partial.par_fninstmap){
-        VNFNetwork->par_utilization[fn][fninst] += cSFC->trafficArrivalRate;
+
+    for(const auto& [fn, fninst]: sol_partial.ppar_fninstmap){
+        VNFNetwork->ppar_utilization[fn][fninst] += cSFC->trafficArrivalRate;
     }
     if(showInConsole){
-        cout<<"\n PartialEnumeration: SFC["<<cSFC->index<<"]\t Parallel: partIdx["<<sol_partial.par_pid<<"]  delay:["<<sol_partial.par_delay<<"] :";
-        for(const auto &blk: cSFC->allPartParSFC[sol_partial.par_pid]) {
+        cout << "\n PartialEnumeration: SFC[" << cSFC->index << "]   Par: idx[" << sol_partial.ppar_pid << "]  delay:[" << sol_partial.ppar_delay << "] :";
+        for(const auto &blk: cSFC->allPartParSFC[sol_partial.ppar_pid]) {
             cout<<"[";  for(const auto& fnid: blk){
-                cout<<fnid<<char(96+sol_partial.par_fninstmap.at(fnid))<<" ";
+                cout << fnid << char(96+sol_partial.ppar_fninstmap.at(fnid)) << " ";
             }   cout<<"]";
         }
     }
     return algosuccess;
-}//partialChains_Parallel_Deployment
+}//partialChains_PartParallel_Deployment
 
 
 
@@ -683,13 +732,13 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  vector
     vector<unordered_set<unsigned int>> uniqLgidInStgOfKPaths(szStages); ///< unique lgNode ids in each stage which is used in k shortest path. So that we don't have to iterate all lgNode in stages again and itearte only which is necessary.
     type_delay  T_tx_init = calcD_TransmissionDelay(); ///< transmission time
     unsigned int lgDSTid = idx2lgNode.size()-1; ///< destination lgNode index
-    const unsigned int mxPathsK = 12; ///< maximum number of paths to consider in any stage
+    const unsigned int mxPathsK = 5; ///< maximum number of paths to consider in any stage
 /* ************* function to find min pair path ************************************************************ */
     std::function<unsigned int(unsigned int)> findPathsToConsider = [&](unsigned int pqsize)->unsigned int{
         if(pqsize <= 2) return pqsize; ///< if less than two then take both
         else if(pqsize <= 4) return 2; // if 2-4 paths then take 2
         else return mxPathsK;
-//        return pqsize;
+//        return 16;
     };
     /*! to process the min heap. select min time and min utilization paths of all the paths present in min heap.
      * Early stopping criteria -> At any point/stage if path's mindist is more than what we found the min delay for sfc till now among all partial chains,
@@ -701,6 +750,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  vector
     std::function<int(const unsigned int, priority_queue<pqNode>&, unsigned int)> processs_min_heap = [&idx2lgNode, &uniqLgidInStgOfKPaths, &minBstDelay, &showInConsole](const unsigned int& id_curstg, priority_queue<pqNode>&pq, unsigned int numOfPathsToConsider)->int{
         if(showInConsole){ cout<<"\n TotalPathPairs:"<<pq.size();}
         int numOfPathsInserted = 0;
+        type_delay prv_mindist_taken = 0;
         while(numOfPathsToConsider>0 and !pq.empty()){
             pqNode min_path = pq.top(); /*! pair of src and dst lg node which produce min distance */
 
@@ -709,6 +759,13 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  vector
             if(min_path.mindist > minBstDelay) {
                 return numOfPathsInserted;
             }
+            // min 3 path insert kar diye and hamare pass abhi kuch paths consider krne ko hai and pq me aur bhi paths hai, par abhi wale ka dist same hai prv wale se
+             if(numOfPathsInserted>2 and (pq.size() > numOfPathsToConsider) and  fabs(prv_mindist_taken - min_path.mindist)<1){
+                 pq.pop(); // is path ko consider hi nhi kar rha, aage ke 2 path ko consider kr rha
+                 continue;
+             }
+            prv_mindist_taken = min_path.mindist;
+
             numOfPathsInserted++;
             min_path.path.push_back(min_path.y); ///< create path by inserting new destination for which it is minimum.
 
@@ -804,7 +861,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  vector
                         unsigned int cntNextHopDiffServer = lgy.cntPN.size() - px_py_same;
                         type_delay T_d_pkt =  calcD_InterDuplicationTime(cntNextHopDiffServer);
                         type_delay T_tx=0, T_px=0;
-                        if(px_py_same == 0){ /// if both server are different then there is transmission and propagation delay
+                        if(pn_y != pn_x){ /// if both server are different then there is transmission and propagation delay
                             T_tx = T_tx_init; T_px =  calcD_PropagationDelay<type_wgt, type_res>(pn_x, pn_y,PhysicalNetwork);
                         }
                         mx_interdupTxPx_for_y = max(mx_interdupTxPx_for_y, T_d_pkt + T_tx + T_px);///< overall total time spent in sending packet from src to dest.
@@ -899,7 +956,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  vector
  * @return status of the algorithm.
  */
 template<typename type_wgt, typename type_res>
-bool layerGraph_Sequential_Deployement(optimalResult& sol_layerg,  const vector<vector<unsigned int>>& seqSFC, ServiceFunctionChain *const cSFC, const unordered_map<unsigned int, vnfDelaysPreComputed>& vnfDelays,
+bool layerGraph_Sequential_Deployement(sfcResult& sol_layerg, const vector<vector<unsigned int>>& seqSFC, ServiceFunctionChain *const cSFC, const unordered_map<unsigned int, vnfDelaysPreComputed>& vnfDelays,
                                        VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork,
                                        const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork, bool showInConsole = false, bool showInConsoleDetailed = false) {
 
@@ -952,6 +1009,76 @@ bool layerGraph_Sequential_Deployement(optimalResult& sol_layerg,  const vector<
     return algosuccess;
 }
 
+
+/*! FINDING THE VNF DEPLOYMENT by Layer Graph Construction IF Full PARALLELISM Enabled IN SFC\n
+ * For a given partial sfc and its full parallel vnf, construct the layer graph and find the final instance mapping/deployment based on previous utilization.\n
+ * Intance mapping is based on min delay of the path with min utilization (lightly loaded).\n
+ * For a partial parallel chain, and its instances combination in stages, it enumerates only k shortest paths in each stage from previous to current stage.
+ * @param[out] sol_layerg solution/deployement obtained by algorithm
+ * @param[in] fullSFC sequential chain, this partial chain is same as given sfc.
+ * @param[in] cSFC  given SFC object for which we have to find minimum delay mapping
+ * @param[in] vnfDelays pre-computed vnfs delay for the given sfc
+ * @param[in] VNFNetwork Virtual Network function class consist of VNF nodes
+ * @param[in] VirtualNetwork  Virtual Network class consists of Virtual machine nodes
+ * @param[in] PhysicalNetwork Physical Network class consists of network graph
+ * @param[in] showInConsole print in the console.
+ * @param[in] showInConsoleDetailed print of each step in the console
+ * @return status of the algorithm.
+ */
+template<typename type_wgt, typename type_res>
+bool layerGraph_FullParallel_Deployment(sfcResult& sol_layerg, const vector<vector<unsigned int>>& fullSFC, ServiceFunctionChain *const cSFC, const unordered_map<unsigned int, vnfDelaysPreComputed>& vnfDelays,
+                                       VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork,
+                                       const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork, bool showInConsole = false, bool showInConsoleDetailed = false) {
+
+    const unsigned int Len = fullSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
+
+    vector<vector<unsigned int>> stg2lgnids(Len); ///< stage wise lgNode indexes in order to process/traverse it.
+    unordered_map<unsigned int, lgNode> idx2lgNode;///< given index it is mapped to actual layer graph node structer so that we can process it uniquely.
+    idx2lgNode[0] = lgNode(0); ///< source lgNode.
+
+    for(unsigned int stgid=0; stgid<Len; stgid++){      // finding instances possibilities of each stage and constructing lgNodes.
+        const auto& curStg = fullSFC[stgid];
+        vector<pair<unsigned int,unsigned int>> curInstComb;
+        construct_layerGraphNodesIC<type_res>(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, vnfDelays, VNFNetwork->fullpar_utilization, cSFC, VNFNetwork, VirtualNetwork);
+        if(stg2lgnids[stgid].empty()){
+            sol_layerg.fullpar_pid = noResDueToNoStg;
+            return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
+        }
+    }//stgid<szStages finding instances possibilities of each stage.
+
+    unsigned int lgDSTid = idx2lgNode.size(); ///< destination lgNode
+    idx2lgNode[lgDSTid] = lgNode(lgDSTid);
+
+    if(showInConsoleDetailed){ // showing partParSFC info
+        cout<<"\nfullSFC: ";
+        for(const auto& blks: fullSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<")";
+        for(int cur_lvl=0; cur_lvl<Len; cur_lvl++){  // showing stage wise combination
+            cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2lgnids[cur_lvl].size()<<"):";
+            for(const auto& lgid: stg2lgnids[cur_lvl]){
+                cout<<lgid<<"["; for(const auto &givenPair: idx2lgNode[lgid].instCombination){  cout<<""<<givenPair.first<<char(givenPair.second-1+'a')<<" ";  } cout<<"] ";
+            }
+        }
+    }
+
+    traverse_layerGraph<type_wgt, type_res>(fullSFC, stg2lgnids, idx2lgNode, sol_layerg.fullpar_delay, sol_layerg.fullpar_fninstmap,cSFC, PhysicalNetwork, showInConsole);
+    sol_layerg.fullpar_pid = cSFC->allPartParSFC.size()-1;
+
+    /// if we found the mapping for sequential chain
+    for(const auto& [fn, fninst]: sol_layerg.fullpar_fninstmap){
+        VNFNetwork->fullpar_utilization[fn][fninst] += cSFC->trafficArrivalRate;
+    }
+
+    if(showInConsole) {
+        cout << "\n LayerGraph: SFC[" << cSFC->index << "]"<<"\t Sequential partIdx["<<sol_layerg.fullpar_pid<<"]  delay:["<<sol_layerg.fullpar_delay<<"]:";
+        for(const auto &blk: cSFC->allPartParSFC[sol_layerg.fullpar_pid]) {
+            cout<<"[";  for(const auto& fnid: blk){
+                cout<<fnid<<char(96+sol_layerg.fullpar_fninstmap.at(fnid))<<" ";
+            }   cout<<"]";
+        }
+    }
+    return algosuccess;
+}
+
 /*! FINDING THE VNF DEPLOYMENT by Layer Graph Construction IF PARALLELISM ENABLED IN SFC.\n
  * For a given SFC and its all partial parallel chains, construct the layer graph and find the final instance mapping/deployment based on previous utilization.\n
  * Intance mapping is based on min delay of the path with min utilization (lightly loaded).\n
@@ -967,13 +1094,14 @@ bool layerGraph_Sequential_Deployement(optimalResult& sol_layerg,  const vector<
  * @return status of the algorithm.
  */
 template<typename type_wgt, typename type_res>
-bool layerGraph_Parallel_Deployement(optimalResult& sol_layerg, ServiceFunctionChain *const cSFC, const unordered_map<unsigned int, vnfDelaysPreComputed>& vnfDelays,
-                               VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork,
-                                 const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork, bool showInConsole = false, bool showInConsoleDetailed = false) {
+bool layerGraph_PartParallel_Deployement(sfcResult& sol_layerg, ServiceFunctionChain *const cSFC, const unordered_map<unsigned int, vnfDelaysPreComputed>& vnfDelays,
+                                     VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork,
+                                     const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork, bool showInConsole = false, bool showInConsoleDetailed = false) {//layerGraph_PartParallel_Deployement
 
     type_delay bst_partpar_delay = std::numeric_limits<type_delay>::max();
     //    vector<vector<unsigned int>> partParSFC = {{1},{6,4},{5}}; ///Testing purpose
     for(int ppsidx=int( cSFC->allPartParSFC.size())-1; ppsidx>=0; --ppsidx){/*! For each partial parallel SFC without src and dest block/stage.*/
+        cout<<"\r\t\t\t("<<cSFC->allPartParSFC.size()-ppsidx<<"/"<<cSFC->allPartParSFC.size()<<")"; //showing progress
         const vector<vector<unsigned int>>& partParSFC=cSFC->allPartParSFC[ppsidx]; ///< for each of the partial parallel SFC of the givenParVNF Blocks
         const unsigned int szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
@@ -985,10 +1113,10 @@ bool layerGraph_Parallel_Deployement(optimalResult& sol_layerg, ServiceFunctionC
         for(unsigned int stgid=0; stgid<szStages; stgid++){      // finding instances possibilities of each stage and constructing lgNodes.
             const auto& curStg = partParSFC[stgid];
             vector<pair<unsigned int,unsigned int>> curInstComb;
-            construct_layerGraphNodesIC<type_res>(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, vnfDelays, VNFNetwork->par_utilization, cSFC, VNFNetwork, VirtualNetwork);
+            construct_layerGraphNodesIC<type_res>(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, vnfDelays, VNFNetwork->ppar_utilization, cSFC, VNFNetwork, VirtualNetwork);
 //            mxNumOflgNodesInStg=max(mxNumOflgNodesInStg, (unsigned int)(stg2lgnids[stgid].size()));
             if(stg2lgnids[stgid].empty()){
-                sol_layerg.par_pid = noResDueToNoStg;
+                sol_layerg.ppar_pid = noResDueToNoStg;
                 return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
             }
         }//stgid<szStages finding instances possibilities of each stage.
@@ -1008,34 +1136,34 @@ bool layerGraph_Parallel_Deployement(optimalResult& sol_layerg, ServiceFunctionC
                 }
         }
 
-        traverse_layerGraph<type_wgt, type_res>(partParSFC, stg2lgnids, idx2lgNode, bst_partpar_delay, sol_layerg.par_fninstmap, cSFC, PhysicalNetwork);
-        if(bst_partpar_delay < sol_layerg.par_delay ){
-            sol_layerg.par_pid = ppsidx;
-            sol_layerg.par_delay = bst_partpar_delay;
+        traverse_layerGraph<type_wgt, type_res>(partParSFC, stg2lgnids, idx2lgNode, bst_partpar_delay, sol_layerg.ppar_fninstmap, cSFC, PhysicalNetwork);
+        if(bst_partpar_delay < sol_layerg.ppar_delay ){
+            sol_layerg.ppar_pid = ppsidx;
+            sol_layerg.ppar_delay = bst_partpar_delay;
         }
     }//for each PartParSFC ppsidx.
-    if(sol_layerg.par_pid == noResPar){
+    if(sol_layerg.ppar_pid == noResPar){
         return algostopped;
     }
 
     /// if we found the mapping for parallel chain
-    for(const auto& [fn, fninst]: sol_layerg.par_fninstmap){
-        VNFNetwork->par_utilization[fn][fninst] += cSFC->trafficArrivalRate;
+    for(const auto& [fn, fninst]: sol_layerg.ppar_fninstmap){
+        VNFNetwork->ppar_utilization[fn][fninst] += cSFC->trafficArrivalRate;
     }
 
     if(showInConsole) {
-        cout << "\n LayerGraph: SFC[" << cSFC->index << "]" <<"\t Parallel: partIdx["<<sol_layerg.par_pid<<"] delay:["<<sol_layerg.par_delay<<"] :";
-        for(const auto &blk: cSFC->allPartParSFC[sol_layerg.par_pid]) {
+        cout << "\n [LayerGraph]  SFC[" << cSFC->index << "]" << "\t Parallel: partIdx[" << sol_layerg.ppar_pid << "] delay:[" << sol_layerg.ppar_delay << "] :";
+        for(const auto &blk: cSFC->allPartParSFC[sol_layerg.ppar_pid]) {
             cout<<"[";  for(const auto& fnid: blk){
-                cout<<fnid<<char(96+sol_layerg.par_fninstmap.at(fnid))<<" ";
+                cout << fnid << char(96+sol_layerg.ppar_fninstmap.at(fnid)) << " ";
             }   cout<<"]";
         }
     }
 
     return algosuccess;
-}//algo_LayerGraph_InstanceMapping
+}//layerGraph_PartParallel_Deployement
 
-
+/* **************************************************************************************************************** */
 /*! For a given SFC and its all partial parallel chains, construct the layer graph and find the final instance mapping/deployment based on previous utilization.\n
  * Intance mapping is based on min delay of the path with min utilization (lightly loaded).\n
  * For a partial parallel chain, and its instances combination in stages, it enumerates only k shortest paths in each stage from previous to current stage.
@@ -1052,11 +1180,16 @@ template<typename type_wgt, typename type_res>
 void algo_LayerGraph_InstanceMapping(const vector<ServiceFunctionChain*>& sortedSFCs, VirtualNetworkFunctions<type_res>*const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork,
                                      const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork, bool showInConsole = false, bool showInConsoleDetailed = false) {//algo_LayerGraph_InstanceMapping
 
+    int sfccompleted=1, sfctotal = sortedSFCs.size(); cout<<"\n [Layer Graph]\n";
     auto deploy_st = std::chrono::steady_clock::now();
     for(ServiceFunctionChain *cSFC:sortedSFCs) {
-//        cout<<"\n---------------------------------------------------------";
-//        cout<<"\n ss:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF;
-        optimalResult sol_layerg; ///< solution for the layer graph algorithm
+        cout<<"\r  seq["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
+//        cout<<"\n------------------------------------------------------";
+//        cout<<"\n[LayerG] Seq | sfc:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF;
+
+        sfcResult sol_layerg; ///< solution for the layer graph algorithm
+
+        auto sfc_st = std::chrono::steady_clock::now();
         unordered_map<unsigned int, vnfDelaysPreComputed> vnfDelays;///< pre-calculated VNF delays (processing, execution and queuing delay). Before iterating all the partial par sfc it is better to calculate it for each chain as they will be same for each chain.
         for(const unsigned int& fn: cSFC->vnfSeq){ /// finding some vnf delays
             VNFNode<type_res> *const dstVNFNode = VNFNetwork->VNFNodes.at(fn );
@@ -1068,29 +1201,55 @@ void algo_LayerGraph_InstanceMapping(const vector<ServiceFunctionChain*>& sorted
         }
 
         layerGraph_Sequential_Deployement<type_wgt, type_res>(sol_layerg, cSFC->allPartParSFC[0], cSFC, vnfDelays, VNFNetwork, VirtualNetwork, PhysicalNetwork);
-
+        sol_layerg.seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
         res_layerg.solobj[cSFC->index] = sol_layerg; // save result.
     }
     res_layerg.seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
 
+    sfccompleted=1; cout<<"\n";
     deploy_st = std::chrono::steady_clock::now();
     for(ServiceFunctionChain *cSFC:sortedSFCs) {
+        cout<<"\r  fullpar["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
+//        cout<<"\n------------------------------------------------------";
+//        cout<<"\n[LayerG] FullPar | sfc:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF<<" : PartialChains: "<<cSFC->allPartParSFC.size();
+
+        auto sfc_st = std::chrono::steady_clock::now();
+        unordered_map<unsigned int, vnfDelaysPreComputed> vnfDelays;///< pre-calculated VNF delays (processing, execution and queuing delay). Before iterating all the partial par sfc it is better to calculate it for each chain as they will be same for each chain.
+        for(const unsigned int& fn: cSFC->vnfSeq){ /// finding some vnf delays
+            VNFNode<type_res> *const dstVNFNode = VNFNetwork->VNFNodes.at(fn );
+            vnfDelays[fn].prcDelay = calcD_MeanProcessingDelayVNF<type_res>(dstVNFNode);
+            vnfDelays[fn].exeDelay = calcD_FunctionExecutionDelay<type_res>(dstVNFNode);
+            for(int fnInst=1; fnInst<=dstVNFNode->numInstances; fnInst++) { ///sequential Queuing Delay
+                vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay<type_res>(dstVNFNode, fnInst, VNFNetwork->fullpar_utilization, cSFC);
+            }
+        }
+        layerGraph_FullParallel_Deployment<type_wgt, type_res>(res_layerg.solobj[cSFC->index], cSFC->allPartParSFC[cSFC->allPartParSFC.size()-1], cSFC, vnfDelays, VNFNetwork, VirtualNetwork, PhysicalNetwork);
+        res_layerg.solobj[cSFC->index].fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+    }
+    res_layerg.fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
+
+
+    sfccompleted=1;
+    deploy_st = std::chrono::steady_clock::now();
+    for(ServiceFunctionChain *cSFC:sortedSFCs) {
+        cout<<"\n  ppar["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
 //        cout<<"\n---------------------------------------------------------";
-//        cout<<"\n ss:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF;
+//        cout<<"\n[LayerG] PartPar | sfc:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF<<" : PartialChains: "<<cSFC->allPartParSFC.size();
+        auto sfc_st = std::chrono::steady_clock::now();
         unordered_map<unsigned int, vnfDelaysPreComputed> vnfDelays;///< pre-calculated VNF delays (processing, execution and queuing delay). Before iterating all the partial par sfc it is better to calculate it for each chain as they will be same for each chain.
         for(const unsigned int& fn: cSFC->vnfSeq){ /// finding some vnf delays
             VNFNode<type_res> *const dstVNFNode = VNFNetwork->VNFNodes.at(fn );
             vnfDelays[fn].prcDelay = calcD_MeanProcessingDelayVNF<type_res>(dstVNFNode);
             vnfDelays[fn].exeDelay = calcD_FunctionExecutionDelay<type_res>(dstVNFNode);
             for(int fnInst=1; fnInst<=dstVNFNode->numInstances; fnInst++) { ///Parallel Queuing Delay
-                vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay<type_res>(dstVNFNode, fnInst, VNFNetwork->par_utilization, cSFC);
+                vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay<type_res>(dstVNFNode, fnInst, VNFNetwork->ppar_utilization, cSFC);
             }
         }
 
-        layerGraph_Parallel_Deployement<type_wgt, type_res>(res_layerg.solobj[cSFC->index], cSFC, vnfDelays, VNFNetwork, VirtualNetwork, PhysicalNetwork);
-
+        layerGraph_PartParallel_Deployement<type_wgt, type_res>(res_layerg.solobj[cSFC->index], cSFC, vnfDelays, VNFNetwork, VirtualNetwork, PhysicalNetwork);
+        res_layerg.solobj[cSFC->index].ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
     }
-    res_layerg.par_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
+    res_layerg.ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
 
 }//algo_LayerGraph_InstanceMapping
 
@@ -1108,26 +1267,48 @@ template<typename type_wgt, typename type_res>
 void algo_PartialChains_InstanceMapping(const vector<ServiceFunctionChain*>& sortedSFCs, VirtualNetworkFunctions<type_res> *const VNFNetwork, const VirtualMachines<type_res> *const VirtualNetwork, const PhysicalGraph<type_wgt, type_res> *const PhysicalNetwork,
                                         bool showInConsole = false, bool showInConsoleDetailed = false) {//algo_PartialChains_InstanceMapping
 
+    int sfccompleted=1, sfctotal = sortedSFCs.size(); cout<<"\n[Partial Enumeration]\n";
     auto deploy_st = std::chrono::steady_clock::now();
     for(ServiceFunctionChain *cSFC:sortedSFCs) {
-//        cout<<"\n---------------------------------------------------------";
-//        cout<<"\n sfc:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF;
+        cout<<"\r  seq["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
+//        cout<<"\n------------------------------------------------------";
+//        cout<<"\n[PartialCh] Seq | sfc:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF;
 
-        optimalResult sol_partial; // using this algo what is optimal result.
-        ///< Finding best instance combinaton for sequential sfc that is no parallelism, index=0 is same as seq sfc.
-        partialChains_Sequential_Deployment<type_wgt, type_res>(sol_partial, cSFC->allPartParSFC[0], cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
+        sfcResult sol_partial; // using this algo what is optimal result for a single sfc.
+
+        auto sfc_st = std::chrono::steady_clock::now();
+        partialChains_Sequential_Deployment<type_wgt, type_res>(sol_partial, cSFC->allPartParSFC[0], cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork, showInConsole, showInConsoleDetailed);
+        sol_partial.seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
         res_partial.solobj[cSFC->index] = sol_partial; // save result
     }
     res_partial.seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
 
 
+    sfccompleted=1; cout<<"\n";
     deploy_st = std::chrono::steady_clock::now();
     for(ServiceFunctionChain *cSFC:sortedSFCs) {
-//        cout<<"\n---------------------------------------------------------";
-//        cout<<"\n sfc:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF;
-        partialChains_Parallel_Deployment<type_wgt, type_res>(res_partial.solobj[cSFC->index], cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork);
+        cout<<"\r  fullpar["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
+//        cout<<"\n------------------------------------------------------";
+//        cout<<"\n[PartialCh] FullPar | sfc:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF<<" : PartialChains: "<<cSFC->allPartParSFC.size();
+
+        auto sfc_st = std::chrono::steady_clock::now();
+        partialChains_FullParallel_Deployment<type_wgt, type_res>(res_partial.solobj[cSFC->index], cSFC->allPartParSFC[cSFC->allPartParSFC.size()-1], cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork, showInConsole, showInConsoleDetailed);
+        res_partial.solobj[cSFC->index].fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
     }
-    res_partial.par_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
+    res_partial.fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
+
+
+    sfccompleted=1;
+    deploy_st = std::chrono::steady_clock::now();
+    for(ServiceFunctionChain *cSFC:sortedSFCs) {
+        cout<<"\n  ppar["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
+//        cout<<"\n------------------------------------------------------";
+//        cout<<"\n[PartialCh] PartPar | sfc:"<<cSFC->index<<" :  lambda: "<<cSFC->trafficArrivalRate<<" :  vnfs: "<<cSFC->numVNF<<" : PartialChains: "<<cSFC->allPartParSFC.size();
+        auto sfc_st = std::chrono::steady_clock::now();
+        partialChains_PartParallel_Deployment<type_wgt, type_res>(res_partial.solobj[cSFC->index], cSFC, VNFNetwork, VirtualNetwork, PhysicalNetwork, showInConsole, showInConsoleDetailed);
+        res_partial.solobj[cSFC->index].ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+    }
+    res_partial.ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
 
 
 }//algo_PartialChains_InstanceMapping
@@ -1135,30 +1316,35 @@ void algo_PartialChains_InstanceMapping(const vector<ServiceFunctionChain*>& sor
 /* **************************************************************************************************************** */
 
 void showAlgoResults(vector<ServiceFunctionChain*>& SFCs, finalResults fr){
+
     cout<<"\n  "<<fr.name_sol<<" : ";
-    for(int ni=1; ni<SFCs.size(); ni++){
-        const ServiceFunctionChain* const sfc = SFCs[ni];
-        cout<<"\nSFC:"<<sfc->index<<" | TrafficRate: "<<sfc->trafficArrivalRate<<" | cntVNFs: "<<sfc->numVNF;
-        const auto& obj= fr.solobj[ni];
+    for(const ServiceFunctionChain* const sfc: SFCs){
+        cout<<"\nSFC:"<<sfc->index<<" | TrafficRate: "<<sfc->trafficArrivalRate<<" | cntVNFs: "<<sfc->numVNF<<" | PartialChains: "<<sfc->allPartParSFC.size();
+        const auto& obj= fr.solobj[sfc->index];
             if(obj.seq_pid==noResDueToNoStg)cout<<"No Result Obtained for Sequential/Parallel due to no instance combination in one of the stage.";
             else{
-                cout<<"\n\tSequential id(";
-                if(obj.seq_pid == noResSeq)cout<<"No Result Obtained for Sequential.";
+                cout<<"\n\tSeq. id(";
+                if(obj.seq_pid == noResSeq)cout<<" No Result Obtained for Sequential.)";
                 else{ cout<<obj.seq_pid<<"):\tD: "<<obj.seq_delay<<"sec  \t";
                     for(const auto &blk: sfc->allPartParSFC[obj.seq_pid]) { cout<<" [";  for(const auto& fnid: blk){ cout<<"f"<<fnid<<char(96+obj.seq_fninstmap.at(fnid))<<" "; }   cout<<"]";
                     }
                 }
-                cout<<"\n\tParallel id(";
-                if(obj.par_pid == noResPar)cout<<"No Result Obtained for Parallel.";
-                else{ cout<<obj.par_pid<<"):\tD: "<<obj.par_delay<<"sec \t";
-                    for(const auto &blk: sfc->allPartParSFC[obj.par_pid]) { cout<<" [";  for(const auto& fnid: blk){ cout<<"f"<<fnid<<char(96+obj.par_fninstmap.at(fnid))<<" "; }   cout<<"]";
+                cout<<"\n\tFull Par. id(";
+                if(obj.fullpar_pid == noResPar)cout << " No Result Obtained for Partial Parallel.)";
+                else{ cout << obj.fullpar_pid << "):\tD: " << obj.fullpar_delay << "sec \t";
+                    for(const auto &blk: sfc->allPartParSFC[obj.fullpar_pid]) { cout << " [";  for(const auto& fnid: blk){ cout << "f" << fnid << char(96 + obj.fullpar_fninstmap.at(fnid)) << " "; }   cout << "]";
+                    }
+                }
+                cout<<"\n\tPartial Par. id(";
+                if(obj.ppar_pid == noResPar)cout << " No Result Obtained for Partial Parallel.)";
+                else{ cout << obj.ppar_pid << "):\tD: " << obj.ppar_delay << "sec \t";
+                    for(const auto &blk: sfc->allPartParSFC[obj.ppar_pid]) { cout << " [";  for(const auto& fnid: blk){ cout << "f" << fnid << char(96 + obj.ppar_fninstmap.at(fnid)) << " "; }   cout << "]";
                     }
                 }
             }
 
     }
-    cout<<"\nSeq Deployement Duration: "<<fr.seq_duration<<"ms.";
-    cout<<"\npar Deployement Duration: "<<fr.par_duration<<"ms.";
+    cout<<"\nDeployement Duration: Seq: "<<fr.seq_duration<<"ms." << " | Full Par: " << fr.fullpar_duration << "ms." << " | Partial Par: " << fr.ppar_duration << "ms.";
     cout<<"\n---------------------------------------------------------";
 }
 

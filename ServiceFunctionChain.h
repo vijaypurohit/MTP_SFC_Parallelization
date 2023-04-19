@@ -5,17 +5,19 @@
 #ifndef SFC_PARALLELIZATION_SERVICEFUNCTIONCHAIN_H
 #define SFC_PARALLELIZATION_SERVICEFUNCTIONCHAIN_H
 
-/*! @brief According to the algorithm what is the optimal/best (minimum delay) parameters we have found */
-struct optimalResult{
-    int seq_pid{noResSeq}, par_pid{noResPar}; ///< idx of allPartParSFC Array of given SFC for which algorithm give optimal answer.
-    type_delay seq_delay{std::numeric_limits<type_delay>::max()}; ///< Best time of sequential length for given chain according to our algorithm.
-    type_delay par_delay{std::numeric_limits<type_delay>::max()}; ///< Best time of sequential length for given chain according to our algorithm.
-    unordered_map<unsigned int, unsigned int> seq_fninstmap, par_fninstmap; ///< Best mapping {fun->its instance taken} for given sequential length chain according to our algorithm.
+/*! @brief For a single SFC, according to the algorithm what is the optimal/best (minimum delay) parameters we have found.*/
+struct sfcResult{
+    int seq_pid{noResSeq}, ppar_pid{noResPar}, fullpar_pid{noResPar}; ///< idx of allPartParSFC Array for sequential/part parallel/full parallel for which algorithm give optimal answer.
+    type_delay seq_delay{std::numeric_limits<type_delay>::max()}; ///< Best time of sequential length chain according to our algorithm.
+    type_delay ppar_delay{std::numeric_limits<type_delay>::max()}; ///< Best time of partial parallel chain according to our algorithm.
+    type_delay fullpar_delay{std::numeric_limits<type_delay>::max()}; ///< Best time of full parallel chain according to our algorithm.
+    unordered_map<unsigned int, unsigned int> seq_fninstmap, ppar_fninstmap, fullpar_fninstmap; ///< Best mapping {fun->its instance taken} for given sequential length chain according to our algorithm.
+    type_delay seq_duration, ppar_duration, fullpar_duration;
 };
 struct finalResults{
     std::string name_sol{}; //< name of the solution
-    unordered_map<unsigned int, optimalResult> solobj; //< sfc index to its solution values
-    double seq_duration{}, par_duration{}; //< time taken to construct the solution with/without parallelism
+    unordered_map<unsigned int, sfcResult> solobj; //< sfc index to its solution values
+    double seq_duration{}, ppar_duration{}, fullpar_duration{}; //< time taken to construct the solution with/without parallelism
     explicit finalResults(string name){
         name_sol = std::move(name);
     }
@@ -51,21 +53,21 @@ struct pqNode{
 //               || std::fabs(val_x - val_y) < std::numeric_limits<T>::min();
 //    }
     template<class T>
-    bool nearly_equal(T a, T b, T factor /* a factor of epsilon */) const {
-        double min_a = a - (a - std::nextafter(a, std::numeric_limits<T>::lowest())) * factor;
-        double max_a = a + (std::nextafter(a, std::numeric_limits<T>::max()) - a) * factor;
-        return min_a <= b && max_a >= b;
+    bool approximatelyEqual(T a, T b, T epsilon) const
+    {
+        return fabs(a - b) <= ( (fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
+        return (static_cast<int>(a*100.0) == static_cast<int>(b*100.0));
     }
 
     bool operator<(const struct pqNode& other) const { // overloaded operator for priority queue
 //        if(mindist == other.mindist) ///< if distance is same
-        if(nearly_equal<type_delay>(mindist, other.mindist, 0.0001)) /// upto 2nd decimal digit equal
+        if(approximatelyEqual<type_delay>(mindist, other.mindist, 0.0005)) /// upto 2nd decimal digit equal, 38.941, 38.94
         {
             if(utilization>0 or other.utilization>0) /// if some utilizatio to compare
                 return utilization > other.utilization; //min heap, return pair of x-y with min utilization
-//            if(x == other.x)
+            if(x == other.x)
                 return y > other.y; /// sort according to instance id. first come first serve
-//            return x > other.x; /// sort according to instance id. first come, first served
+            return x > other.x; /// sort according to instance id. first come, first served
 //            return false;
         }
         else {
@@ -145,7 +147,7 @@ struct comparator_sfc {
  */
 void ServiceFunctionChain::showSequentialSFC(const unordered_map<unsigned int, unsigned int>& VNFType2Inst = unordered_map<unsigned int, unsigned int>()){
 
-    cout << "\nSeq SFC:["<<name<<"]nVNF["<< numVNF<<"]::\t";
+    cout<<"\nSeq. SFC:"<<index<<" | TrafficRate: "<<trafficArrivalRate<<" | cntVNFs: "<<numVNF<<" | PartialChains: "<<allPartParSFC.size()<<"\n\t";
     cout << "(SRC -> ";
     for(const auto& fn : vnfSeq){
         cout <<"f"<< fn ;
@@ -160,7 +162,7 @@ void ServiceFunctionChain::showSequentialSFC(const unordered_map<unsigned int, u
  * @param VNFType2Inst function to instance mapping.
  */
 void ServiceFunctionChain::showParallelSFC(const vector<vector<unsigned int>>& givenSFC, const unordered_map<unsigned int, unsigned int>& VNFType2Inst = unordered_map<unsigned int, unsigned int>()){
-    cout << "\nPar SFC:["<<name<<"]nVNF["<< numVNF<<"]::\t";
+    cout<<"\nPar. SFC:"<<index<<" | TrafficRate: "<<trafficArrivalRate<<" | cntVNFs: "<<numVNF<<" | PartialChains: "<<allPartParSFC.size()<<"\n\t";
     cout << "(SRC ->";
     for(const auto& blk: givenSFC){
         cout<<" ["; for(int fn: blk){
@@ -172,6 +174,32 @@ void ServiceFunctionChain::showParallelSFC(const vector<vector<unsigned int>>& g
     } cout << " DST)";
 }
 
+/*!
+ * Show description of all the SFCs in the Network
+ */
+void showSFCsDescriptions(vector<ServiceFunctionChain *> allSFCs){
+
+    cout << "\n\n ----- Service Functions Chains Description ::";
+    cout<<"\nIndex\t"<<"Name\t"<<"cntVNFs\t"<<"TrafficRate\t"<<"PartialChains\t"<<"Sequential SFC\t"<<"Parallel SFC";
+    cout<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
+    for (const auto &sfc: allSFCs){
+        cout<<"\n"<<sfc->index<<" | ";
+        cout<<sfc->name<<" | ";
+        cout<<sfc->numVNF<<" | ";
+        cout<<sfc->trafficArrivalRate<<" | ";
+        cout<<sfc->allPartParSFC.size()<<" | ";
+        cout << "(SRC->";
+        for(const auto& fn : sfc->vnfSeq){ cout <<"f"<< fn ;   cout<< ";->";
+        } cout << " DST)\t";
+        cout << "(SRC->";
+        for(const auto& blk: sfc->allPartParSFC[sfc->allPartParSFC.size()-1]){
+            cout<<" ["; for(int fn: blk){
+                cout <<"f"<< fn ;  cout<<"; ";
+            }
+            cout<<"]->";
+        } cout << "DST)";
+    }
+}
 
 /*!
  * Print SFC Graph using Graphviz in a PNG format

@@ -59,7 +59,7 @@ void readConstants(const string& testDirName)
  * @tparam type_res resource data type.
  */
 template<typename type_wgt, typename type_res>
-void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **graph, bool showinConsole=false)
+void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **const& graph, bool showinConsole=false)
 {
     ifstream fin;
     string filepathExt = input_directory + testDirName + filename_network;
@@ -69,7 +69,7 @@ void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **
         fin.clear();
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
-    if(debug)cout<<"\n[Function Running: "<<__FUNCTION__<<"]. Network File:"<<filepathExt<<endl;
+    if(debug)cout<<"\n[Reading Network] Network File: "<<filepathExt<<endl;
 
 //    PhysicalGraph<type_wgt, type_res> *graph = nullptr;
     unsigned int iG_nNodes, iG_nEdges;
@@ -85,21 +85,21 @@ void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **
             fin.ignore();
             getline(fin, readNode_name);
             if (!(fin>>readNode_idx>>readNodeCap_cores>>readNode_memory>>readNode_disk>>readNode_cpuspeed))
-                cerr << "\t Node Data Reading Failed: Node Row["<<ni<<"]\n";
+                std::cerr << "\t Node Reading Failed: Node Row["<<ni<<"]\n";
             (*graph)->PNode[readNode_idx] = new PhysicalNode<type_res>(readNode_idx, readNode_name, NodeCapacity<type_res>(readNodeCap_cores, readNode_memory, readNode_disk, readNode_cpuspeed));
             if(showinConsole)cout<<readNode_idx<<"-"<<readNode_name<<"-"<<readNodeCap_cores<<"-"<<readNode_memory<<"-"<<readNode_disk<<"-"<<readNode_cpuspeed<<endl;
         }
-        if(debug)cout<<"\t[Node Data Reading Completed] Nodes:"<<iG_nNodes<<"\n";
+        if(debug)cout<<"\tNodes:"<<iG_nNodes<<"\n";
         int ne=0;/// number of edges
         while(!fin.eof()) {
             if(!(fin>>readEdge_u>>readEdge_v>>readEdge_wgt))
-                cerr << "\t Edge Data Reading Failed: Edge Row["<<ne<<"]\n";
+                std::cerr << "\t Edge Reading Failed: Edge Row["<<ne<<"]\n";
             ++ne;
             (*graph)->addEdge(new PhysicalEdge<type_wgt>(readEdge_u, readEdge_v, readEdge_wgt));
             if(showinConsole)cout<<readEdge_u<<" - "<<readEdge_v<<" - "<<readEdge_wgt<<endl;
         }
         (*graph)->setNumOfEdges(ne); // set number of edges.
-        if(debug)cout<<"\t[Edge Data Reading Completed] Edges:"<<ne;
+        if(debug)cout<<"\tEdges:"<<ne;
 
     } else{
         string errorMsg = "Invalid Input File Values V and E. File "+filepathExt+ ". Function: ";
@@ -107,7 +107,7 @@ void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **
     }
     fin.close();
     (*graph)->calcAllPairsShortestPath();
-    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"] -----------------------";
+//    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"]";
 }
 
 /*! Function will read the Virtual Machine data from the file in the input directory and read into VirtualMachine class.\n\n
@@ -123,7 +123,7 @@ void readNetwork(const string& testDirName, PhysicalGraph<type_wgt, type_res> **
  * @tparam type_res resource data type.
  */
 template<typename type_res>
-void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **ptr, bool showinConsole=false) {
+void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **const& ptr, bool showinConsole=false) {
     ifstream fin;
     string filepathExt = input_directory + testDirName + filename_virtualmachines;
     fin.open(filepathExt.c_str(), ios::in);
@@ -132,7 +132,7 @@ void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **
         fin.clear();
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
-    if(debug)cout<<"\n[Function Running: "<<__FUNCTION__<<"]. VM File:"<<filepathExt<<endl;
+    if(debug)cout<<"\n["<<__FUNCTION__<<"] VM File:"<<filepathExt<<endl;
     unsigned int i_nVM; // input num of VMs
     if(fin>>i_nVM){
         *ptr = new VirtualMachines<type_res>(i_nVM);
@@ -143,7 +143,7 @@ void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **
             fin.ignore();
             getline(fin, readVM_name);
             if (!(fin>>readVM_idx>>readVM_Cap_cores>>readVM_Cap_memory>>readVM_Cap_disk>>readVM_Cap_cpuspeed>>readVM_Req_cores>>readVM_Req_memory>>readVM_Req_disk>>readVM_Req_cpuspeed))
-                cerr << "\t VM Data Reading Failed: VM Row["<<ni<<"]\n";
+                std::cerr << "\t VM Data Reading Failed: VM Row["<<ni<<"]\n";
             (*ptr)->VMNode[readVM_idx] = new VirtualMachineNode<type_res>(readVM_idx, readVM_name,
                                                                           NodeCapacity<type_res>(readVM_Cap_cores, readVM_Cap_memory, readVM_Cap_disk, readVM_Cap_cpuspeed),
                                                                           NodeCapacity<type_res>(readVM_Req_cores, readVM_Req_memory, readVM_Req_disk, readVM_Req_cpuspeed) );
@@ -156,7 +156,7 @@ void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
     fin.close();
-    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"] -----------------------";
+//    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"]";
 }
 
 /*! Function will read the VNF data from the file in the input directory and read into VNFNode class and VirtualNetworkFunction class.\n\n
@@ -168,10 +168,11 @@ void readVirtualMachines(const string& testDirName, VirtualMachines<type_res> **
  * @param testDirName  path to the current test directory which consists of inputs files
  * @param ptr VirtualNetworkFunctions class pointer variable to store value
  * @param showinConsole show the file read values in the console
+ * @param
  * @tparam type_res resource data type.
  */
 template<typename type_res>
-void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFunctions<type_res> **ptr, bool showinConsole=false) {
+void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFunctions<type_res> **const& ptr, bool showinConsole=false) {
     ifstream fin;
     string filepathExt = input_directory + testDirName + filename_vnf;
     fin.open(filepathExt.c_str(), ios::in);
@@ -180,7 +181,9 @@ void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFuncti
         fin.clear();
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
-    if(debug)cout<<"\n[Function Running: "<<__FUNCTION__<<"]. VNF File:"<<filepathExt<<endl;
+
+    if(debug)cout<<"\n[Reading Virtual Network Functions] VNF File: "<<filepathExt<<endl;
+
     unsigned int i_nVNF; // input num of VNFs
     if(fin>>i_nVNF){
         *ptr = new VirtualNetworkFunctions<type_res>(i_nVNF);
@@ -191,19 +194,19 @@ void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFuncti
             fin.ignore();
             getline(fin, readVNF_name);
             if (!(fin>>readVNF_idx>>readVNFInst>>readVNF_serviceR>>readVNF_execTime>>readVNF_Req_cores>>readVNF_Req_memory>>readVNF_Req_disk>>readVNF_Req_cpuspeed))
-                cerr << "\t VNF Data Reading Failed: VNF Row["<<ni<<"]\n";
+                std::cerr << "\tVNF Reading Failed: VNF Row["<<ni<<"]\n";
             (*ptr)->VNFNodes[readVNF_idx] = new VNFNode<type_res>(readVNF_idx, readVNF_name, readVNFInst, readVNF_serviceR, readVNF_execTime,
                                                                  NodeCapacity<type_res>(readVNF_Req_cores, readVNF_Req_memory, readVNF_Req_disk, readVNF_Req_cpuspeed) );
             if(showinConsole)cout<<readVNF_idx<<"-"<<readVNF_name<<"-"<<readVNFInst<<"-"<<readVNF_serviceR<<"-"<<readVNF_execTime<<"-["<<readVNF_Req_cores<<"-"<<readVNF_Req_memory<<"-"<<readVNF_Req_disk<<"-"<<readVNF_Req_cpuspeed<<"]"<<endl;
         }
-        if(debug)cout<<"\t[VNF Data Reading Completed] VNFs:"<<i_nVNF;
+        if(debug)cout<<"\tVNFs:"<<i_nVNF;
     }else{
         string errorMsg = "Invalid Input File Values. File "+filepathExt+ ". Function: ";
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
     fin.close();
-    (*ptr)->findRandomParallelPairs(testDirName);
-    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"] -----------------------";
+//    (*ptr)->findRandomParallelPairs(testDirName);
+//    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"]";
 }
 
 /*! Function will read the SFC chains data from the file in the input directory and read into ServiceFunctionChain class.\n\n
@@ -215,9 +218,12 @@ void readVirtualNetworkFunctions(const string& testDirName, VirtualNetworkFuncti
  * This line contains VNFs Type id (for i=1 to numOFVNFs)
  * @param testDirName  path to the current test directory which consists of inputs files
  * @param SFC vector of ServiceFunctionChain objects to store values.
+ * @param VNFNetwork VirtualNetworkFunctions class object used to store vnf to sfc mapping.
  * @param showinConsole show the file read values in the console
+ * @tparam type_res resource data type.
  */
-void readGenericServiceFunctionsChains(const string& testDirName, vector<ServiceFunctionChain*>& allSFC, bool showinConsole=false) {
+template<typename type_res>
+void readGenericServiceFunctionsChains(const string& testDirName, vector<ServiceFunctionChain*>& allSFC, vector<ServiceFunctionChain *> &sortedSFCs, VirtualNetworkFunctions<type_res> *const& VNFNetwork ,bool showinConsole=false) {
     ifstream fin;
     string filepathExt = input_directory + testDirName + filename_sfc;
     fin.open(filepathExt.c_str(), ios::in);
@@ -227,38 +233,45 @@ void readGenericServiceFunctionsChains(const string& testDirName, vector<Service
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
 
-    if(debug)cout<<"\n[Function Running: "<<__FUNCTION__<<"] SFC File:"<<filepathExt<<endl;
+    priority_queue<ServiceFunctionChain *, vector<ServiceFunctionChain *>, comparator_sfc> pqSortSFC;
+    if(debug)cout<<"\n[Reading Original Sequential SFCs] SFC File: "<<filepathExt<<endl;
     unsigned int i_nSFC; ///< input num of SFCs
     if(fin>>i_nSFC){
-        allSFC = vector<ServiceFunctionChain*>(i_nSFC+1);
+        allSFC = vector<ServiceFunctionChain*>(i_nSFC);
         string readSFC_name; unsigned int readSFC_idx, readSFC_totalVNF, vnfid; type_delay readSFC_arrivalRate ;
-        for(int ni=1; ni<=i_nSFC; ni++) ///< For each node there is a row which would be read
+        for(int ni=0; ni<i_nSFC; ni++) ///< For each node there is a row which would be read
         {
             fin.ignore();
             getline(fin, readSFC_name);
             if (!(fin>>readSFC_idx>>readSFC_totalVNF>>readSFC_arrivalRate))
-                cerr << "\t SFCs Data Reading Failed: SFC Row["<<ni<<"]\n";
+                std::cerr << "\t SFCs Reading Failed: SFC Row["<<ni<<"]\n";
             allSFC[ni] = new ServiceFunctionChain(readSFC_idx, readSFC_name, readSFC_totalVNF, readSFC_arrivalRate);
-//            allSFC[ni]->vnfSeq.push_back(SFCsrc);
-            for(int vj = 1; vj<=readSFC_totalVNF; vj++) ///< read VNFs type ID.
-                if(fin>>vnfid) {
+            for(int vj = 1; vj<=readSFC_totalVNF; vj++) { ///< read VNFs type ID.
+                if (fin >> vnfid) {
                     allSFC[ni]->vnfSeq.push_back(vnfid);
-                }
-                else cerr << "\t VNF for SFCs Data Reading Failed: SFC Row["<<ni<<"]. VNFid["<<vnfid<<"]\n";
-//            allSFC[ni]->vnfSeq.push_back(SFCdst);
+                    VNFNetwork->cntVNF[vnfid].push_back(ni);
+                } else std::cerr << "\t SFCs Reading Failed: SFC Row[" << ni << "] fn:" << vnfid << "\n";
+            }
+            pqSortSFC.push(allSFC[ni]);
+
             if(showinConsole) {
                  cout << readSFC_idx << "-" << readSFC_name << "-" << readSFC_totalVNF << "-" << readSFC_arrivalRate<<"- [";
                  for(const auto& x: allSFC[ni]->vnfSeq)
                      cout<<x<<" -> "; cout<<"]\n";
              }
         }
-        if(debug)cout<<"\t[Orig. SFCs Data Reading Completed] SFCs:"<<allSFC.size()-1;
+        if(debug)cout<<"\tSFCs:"<<allSFC.size();
     }else{
         string errorMsg = "Invalid Input File Values. File "+filepathExt+ ". Function: ";
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
     fin.close();
-    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"] -----------------------";
+
+    while (!pqSortSFC.empty()) {
+        sortedSFCs.push_back(pqSortSFC.top());
+        pqSortSFC.pop();
+    }
+//    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"]";
 }
 
 

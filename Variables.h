@@ -31,7 +31,7 @@ const std::string filename_network   = "network.txt";
 const std::string filename_virtualmachines   = "virtual_machines.txt";
 const std::string filename_vnf   = "VNFs.txt";
 const std::string filename_sfc   = "SFCs.txt", filename_sfc_parallel = "SFCs_Parallel.txt";
-const std::string filename_vnf_parallelpairs = "VNFs_ParallelPairs.txt";
+const std::string filename_vnf_parallelpairs = "VNFsParallelPairs.txt";
 
 const std::string name_sol_layerg = "Algo LayerG";
 const std::string name_sol_partial = "Algo PartialC";
@@ -47,6 +47,11 @@ unsigned int speedOfLight = 300000000;///<speed of light in vaccum 3 * 10^8 m/s
 type_delay velocityFactor = 1.0; //<velocity factor of transmission medium. vaccum = 1.0. copper wise = 0.7
 type_delay read_write_time_per_bit = 0.077e-3; ///<0.077ms (measured by duplicating a large file of 1 MB in a server with Intel i7-8700 core
 type_delay timesfactor = 1;
+type_delay timesfactor_pkt=1000;
+type_delay timesfactor_tx=10;
+type_delay timesfactor_px=10;
+type_delay timesfactor_fnExe=1;
+type_delay timesfactor_qd=10;
 
 
 /* *************** PreComputed Values *************** */
