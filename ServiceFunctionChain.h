@@ -5,99 +5,6 @@
 #ifndef SFC_PARALLELIZATION_SERVICEFUNCTIONCHAIN_H
 #define SFC_PARALLELIZATION_SERVICEFUNCTIONCHAIN_H
 
-/*! @brief For a single SFC, according to the algorithm what is the optimal/best (minimum delay) parameters we have found.*/
-struct sfcResult{
-    int seq_pid{noResSeq}, ppar_pid{noResPar}, fullpar_pid{noResPar}; ///< idx of allPartParSFC Array for sequential/part parallel/full parallel for which algorithm give optimal answer.
-    type_delay seq_delay{std::numeric_limits<type_delay>::max()}; ///< Best time of sequential length chain according to our algorithm.
-    type_delay ppar_delay{std::numeric_limits<type_delay>::max()}; ///< Best time of partial parallel chain according to our algorithm.
-    type_delay fullpar_delay{std::numeric_limits<type_delay>::max()}; ///< Best time of full parallel chain according to our algorithm.
-    unordered_map<unsigned int, unsigned int> seq_fninstmap, ppar_fninstmap, fullpar_fninstmap; ///< Best mapping {fun->its instance taken} for given sequential length chain according to our algorithm.
-    type_delay seq_duration, ppar_duration, fullpar_duration;
-};
-struct finalResults{
-    std::string name_sol{}; //< name of the solution
-    unordered_map<unsigned int, sfcResult> solobj; //< sfc index to its solution values
-    double seq_duration{}, ppar_duration{}, fullpar_duration{}; //< time taken to construct the solution with/without parallelism
-    explicit finalResults(string name){
-        name_sol = std::move(name);
-    }
-};
-finalResults res_layerg(name_sol_layerg), res_partial(name_sol_partial);
-/* ******** Some Structers *************** */
-/*! @brief Before finding best mapping of SFC, this will save delays based on VNFs in SFC to pre-calculate in order to avoid multiple computations of same VNF.*/
-struct vnfDelaysPreComputed{
-    type_delay exeDelay{}; ///< execution delay of the VNF
-    type_delay prcDelay{}; ///< processing delay of the VNF
-    unordered_map<unsigned int, type_delay> queuingDelay; ///< queuing delay of the VNF and its instance
-//    unordered_map<unsigned int, type_delay> seq_queuingDelay; ///< queuing delay of the VNF and its instance, in case of sequential mapping and utilization
-//    unordered_map<unsigned int, type_delay> par_queuingDelay; ///< queuing delay of the VNF and its instance, in case of parallel mapping and utilization
-};
-
-/*! @brief minheap priority queue node to find minimum dist and minimum utilization path from source to destination/current stage.*/
-struct pqNode{
-    unsigned int x{}, y{}; ///< source and destination pair of previous and current stage lgNode
-    type_delay mindist{}; ///< minimum delay of the path from source to current processing node node
-    type_delay utilization{}; ///< max utilization of the path from source to current processing node node
-    vector<unsigned int> path; ///< path constructed till now from source
-    pqNode()=default;
-    pqNode(unsigned int givenlgSrcId, unsigned int givenlgDstId, type_delay givenDist, type_delay givenUtilization, std::vector<unsigned int> givenPath):x(givenlgSrcId),y(givenlgDstId),mindist(givenDist),utilization(givenUtilization){
-        path = std::move(givenPath);
-    }
-//    template<class T>
-//    typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
-//    almost_equal(T val_x, T val_y, int ulp) const
-//    {
-//        // the machine epsilon has to be scaled to the magnitude of the values used and multiplied by the desired precision in ULPs (units in the last place)
-//        return std::fabs(val_x - val_y) <= std::numeric_limits<T>::epsilon() * std::fabs(val_x + val_y) * ulp
-//               // unless the result is subnormal
-//               || std::fabs(val_x - val_y) < std::numeric_limits<T>::min();
-//    }
-    template<class T>
-    bool approximatelyEqual(T a, T b, T epsilon) const
-    {
-        return fabs(a - b) <= ( (fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
-        return (static_cast<int>(a*100.0) == static_cast<int>(b*100.0));
-    }
-
-    bool operator<(const struct pqNode& other) const { // overloaded operator for priority queue
-//        if(mindist == other.mindist) ///< if distance is same
-        if(approximatelyEqual<type_delay>(mindist, other.mindist, 0.0005)) /// upto 2nd decimal digit equal, 38.941, 38.94
-        {
-            if(utilization>0 or other.utilization>0) /// if some utilizatio to compare
-                return utilization > other.utilization; //min heap, return pair of x-y with min utilization
-            if(x == other.x)
-                return y > other.y; /// sort according to instance id. first come first serve
-            return x > other.x; /// sort according to instance id. first come, first served
-//            return false;
-        }
-        else {
-            return mindist > other.mindist; //min heap, return pair of x-y with minimum distance.
-        }
-    }
-};
-
-/*! @brief Layer Graph Node Vertex
- * @param idx index to detect node uniquely
- * @param instCombination {fnType, instId} pairs showing instance combination at this node
- * @param cntPN count of physical node,frequency in the instance combination
- * @param exePN maximum execution time of physical node in the instance combination
- * @param utilization utilisation percentage of all the instances present in the lgNode
- * @param children next stage lgNode index and its distance, that is pair of this->node = {next stg node, min dist}.
- * @param kpaths number of shortest path traverse through this lgNode
- */
-struct lgNode{
-    unsigned int idx{}; ///< index to detect node uniquely
-    vector<pair<unsigned int,unsigned int>> instCombination; ///< {fnType, instId} pairs showing instance combination at this node
-    unordered_map<unsigned int, unsigned int> cntPN; ///< count of physical node,frequency in the instance combination
-    unordered_map<unsigned int, type_delay> exePN; ///< maximum execution time of physical node in the instance combination
-    type_delay utilization{0}; ///< utilisation percentage of all the instances present in the lgNode
-    vector<pair<unsigned int, type_delay>> children; ///<  next stage lgNode index and its distance, that is pair of this->node = {next stg node, min dist}.
-    vector<pqNode> kpaths; ///< number of shortest path traverse through this lgNode
-
-    lgNode()=default;
-    explicit lgNode(unsigned int index):idx(index){};
-    lgNode(unsigned int index, const vector<pair<unsigned int,unsigned int>>& givenIC):idx(index), instCombination(givenIC){ }
-};
 
 /*! @brief Service Function Class */
 class ServiceFunctionChain
@@ -106,10 +13,10 @@ public:
     unsigned int index /*!< SFC index */; string name;  /*!< SFC name */ unsigned int numVNF;  /*!< number of VNFs except source and dest node */
     type_delay trafficArrivalRate;  /*!< traffic arrival rate of SFC s. in packets per second. arrival rate < service rate. */
     vector<unsigned int> vnfSeq; ///< vnfids in sequential manner excluding src (SFCsrc=0) and dest (SFCdst=-10).
+    pair<unsigned int,unsigned int> access_nodes; ///< source and destination server index from where sfc originates and goes to.
 
-// parameters found through algorithms.
+/// parameters found through algorithms.
     vector<vector<unsigned int>> vnfBlocksPar; ///< vnfids in stage wise, where stg i denotes parallel vnf in ith stage. Exvept src and dest stg.
-
     vector<vector<vector<unsigned int>>> allPartParSFC; ///< All the partial paralle VNF blocks of the given sequential SFC.
 
    /*!
@@ -117,14 +24,18 @@ public:
      * @param _numVNF number of VNFs except source and dest node
      * @param _trafficRate traffic arrival rate of SFC s
      */
-    ServiceFunctionChain(unsigned int _index, const string& _name, unsigned int _numVNF, type_delay _trafficArrivalRate){
-        this->index = _index; this->name = _name;  this->numVNF = _numVNF;
+    ServiceFunctionChain(unsigned int _index, string& _name, pair<unsigned int, unsigned int>& _accessnode, unsigned int _numVNF, type_delay _trafficArrivalRate){
+        this->index = _index; this->name = std::move(_name);
+        this->access_nodes = std::move(_accessnode);
+        this->numVNF = _numVNF;
         this->trafficArrivalRate = _trafficArrivalRate;
     }
+    ServiceFunctionChain()=default;
     ~ServiceFunctionChain()  = default;
 
     void showSequentialSFC(const unordered_map<unsigned int, unsigned int>&);
-    void showParallelSFC(const vector<vector<unsigned int>>&, const unordered_map<unsigned int, unsigned int>&);
+    void showFullyParallelSFC(const unordered_map<unsigned int, unsigned int>&);
+    void showPartialSFC();
 
     [[maybe_unused]] void printOrigSFC(int, const string&);
 };
@@ -134,70 +45,58 @@ public:
  * If traffic rate are same then sort according to the descending order of the length.
  */
 struct comparator_sfc {
-    bool operator()(const ServiceFunctionChain  *const sfc1, const ServiceFunctionChain *const sfc2) {
+    bool operator()(const ServiceFunctionChain*const& sfc1, const ServiceFunctionChain*const& sfc2) {
         if(sfc1->trafficArrivalRate == sfc2->trafficArrivalRate){
             return sfc1->numVNF < sfc2->numVNF;
         }
         return sfc1->trafficArrivalRate < sfc2->trafficArrivalRate; /// max heap,
     }
 };
+
 /*!
- * Show Sequential SFC in console.
+ * Show Original Sequential SFC in console.
  * @param VNFType2Inst function to instance mapping.
  */
 void ServiceFunctionChain::showSequentialSFC(const unordered_map<unsigned int, unsigned int>& VNFType2Inst = unordered_map<unsigned int, unsigned int>()){
-
-    cout<<"\nSeq. SFC:"<<index<<" | TrafficRate: "<<trafficArrivalRate<<" | cntVNFs: "<<numVNF<<" | PartialChains: "<<allPartParSFC.size()<<"\n\t";
-    cout << "(SRC -> ";
+    cout<<"\nSeq. SFC:"<<index<<" | TrafficRate: "<<trafficArrivalRate<<" | cntVNFs: "<<numVNF<<" | cntPartial: "<<allPartParSFC.size()<<"\n\t";
+    cout << "(ps:"<<access_nodes.first<<" -> ";
     for(const auto& fn : vnfSeq){
         cout <<"f"<< fn ;
         if(!VNFType2Inst.empty())cout<<char(96+VNFType2Inst.at(fn));
         cout<< "; -> ";
-    } cout << " DST)";
+    } cout << " pd:"<<access_nodes.second<<")";
 }
 
 /*!
- * Show Parallel VNF SFC in console.
- * @param givenSFC given SFC
+ * Show Fully Parallel SFC in console.
  * @param VNFType2Inst function to instance mapping.
  */
-void ServiceFunctionChain::showParallelSFC(const vector<vector<unsigned int>>& givenSFC, const unordered_map<unsigned int, unsigned int>& VNFType2Inst = unordered_map<unsigned int, unsigned int>()){
-    cout<<"\nPar. SFC:"<<index<<" | TrafficRate: "<<trafficArrivalRate<<" | cntVNFs: "<<numVNF<<" | PartialChains: "<<allPartParSFC.size()<<"\n\t";
-    cout << "(SRC ->";
-    for(const auto& blk: givenSFC){
+void ServiceFunctionChain::showFullyParallelSFC(const unordered_map<unsigned int, unsigned int>& VNFType2Inst = unordered_map<unsigned int, unsigned int>()){
+    cout<<"\nPar. SFC:"<<index<<" | TrafficRate: "<<trafficArrivalRate<<" | cntVNFs: "<<numVNF<<" | cntPartial: "<<allPartParSFC.size()<<"\n\t";
+    cout << "(ps:"<<access_nodes.first<<" -> ";
+    for(const auto& blk: vnfBlocksPar){
         cout<<" ["; for(int fn: blk){
                     cout <<"f"<< fn ;
                     if(!VNFType2Inst.empty())cout<<char(96+VNFType2Inst.at(fn));
                     cout<<"; ";
                 }
         cout<<"] ->";
-    } cout << " DST)";
+    } cout << " pd:"<<access_nodes.second<<")";
 }
 
 /*!
- * Show description of all the SFCs in the Network
+ * Show all the partial SFC of the given SFC.
+ * @param VNFType2Inst function to instance mapping.
  */
-void showSFCsDescriptions(vector<ServiceFunctionChain *> allSFCs){
-
-    cout << "\n\n ----- Service Functions Chains Description ::";
-    cout<<"\nIndex\t"<<"Name\t"<<"cntVNFs\t"<<"TrafficRate\t"<<"PartialChains\t"<<"Sequential SFC\t"<<"Parallel SFC";
-    cout<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
-    for (const auto &sfc: allSFCs){
-        cout<<"\n"<<sfc->index<<" | ";
-        cout<<sfc->name<<" | ";
-        cout<<sfc->numVNF<<" | ";
-        cout<<sfc->trafficArrivalRate<<" | ";
-        cout<<sfc->allPartParSFC.size()<<" | ";
-        cout << "(SRC->";
-        for(const auto& fn : sfc->vnfSeq){ cout <<"f"<< fn ;   cout<< ";->";
-        } cout << " DST)\t";
-        cout << "(SRC->";
-        for(const auto& blk: sfc->allPartParSFC[sfc->allPartParSFC.size()-1]){
-            cout<<" ["; for(int fn: blk){
-                cout <<"f"<< fn ;  cout<<"; ";
-            }
-            cout<<"]->";
-        } cout << "DST)";
+void ServiceFunctionChain::showPartialSFC() {
+    cout << "\nPartial. SFC:" << index << " | TrafficRate: " << trafficArrivalRate << " | cntVNFs: " << numVNF << " | cntPartial: " << allPartParSFC.size();
+    for (int ppid=0; ppid<allPartParSFC.size(); ppid++) {
+        cout<<"\n\tid:"<<ppid<<":: ";
+        for (const auto &blk: allPartParSFC[ppid]) {
+            cout << "[";
+            for (int fn: blk) { cout << "f" << fn << "; "; }
+            cout << "] ";
+        }
     }
 }
 

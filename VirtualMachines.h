@@ -8,13 +8,11 @@
 /*!
  * Virtual Machine Node
  */
-template <class type_res>
 class VirtualMachineNode{
-
 public:
     /*! physical node index. Type int.  */
     unsigned int index{};  string name; ///<node name
-    NodeCapacity<type_res> capacity, requirement; /*!< capacity of the VM node to host VNFs. Type NodeCapacity. \n requirements  of the VM node for hosting on physical node. Type NodeCapacity.*/
+    NodeCapacity capacity, requirement; /*!< capacity of the VM node to host VNFs. Type NodeCapacity. \n requirements  of the VM node for hosting on physical node. Type NodeCapacity.*/
     vector<pair<unsigned int,unsigned int>> vm2VNFs; ///< vnfs indexes hosted on vm id. {vnf_idx, instance_idx (1-based indexing)}
     /*!
      * @param _index physical node index. Type int.
@@ -22,7 +20,7 @@ public:
      * @param _givenCapacity capacity of the VM node to host VNFs. Type NodeCapacity.
      * @param _givenRequirements requirements  of the VM node for hosting on physical node. Type NodeCapacity.
      */
-    VirtualMachineNode(unsigned int _index, const string& _name, NodeCapacity<type_res> _givenCapacity, NodeCapacity<type_res> _givenRequirements): capacity(_givenCapacity), requirement(_givenRequirements){
+    VirtualMachineNode(unsigned int _index, const string& _name, NodeCapacity _givenCapacity, NodeCapacity _givenRequirements): capacity(_givenCapacity), requirement(_givenRequirements){
         this->index = _index; this->name = _name;
     }
     ~VirtualMachineNode() = default;
@@ -30,15 +28,13 @@ public:
 
 /*!
  * Virtual Machines Collection Data, link with physical node
- * @tparam type_res resource data type.
  */
-template <class type_res >
 class VirtualMachines
 {
     unsigned int numVM, srcVM; ///<number of virtual machines . \n srcVM = default 1. Loop starts from 1 to <=numVM
 public:
     unordered_map<unsigned int, unsigned int> I_VM2PN; ///< VM index is hosted on which physical machine
-    unordered_map<unsigned int, VirtualMachineNode<type_res>*> VMNode; ///<Index to Virtual machine address
+    unordered_map<unsigned int, VirtualMachineNode*> VMNode; ///<Index to Virtual machine address
     /*!
      * @param _numVirtualMachines number of virtual machines
      */
@@ -63,17 +59,16 @@ public:
 /*! Show all the Virtual Machine nodes and their description
  * @tparam type_res resource data type.
  */
-template <class type_res>
-void VirtualMachines<type_res>::showVMs_Description(){
+void VirtualMachines::showVMs_Description(){
     cout << "\n\n ----- Virtual Machines Description ::";
-    cout<<"\nIndex\t"<<"Name\t"<<" CAP[cores][memory][disk][speed]\t"<<" Req[cores][memory][disk][speed]\t " <<" PNode \t"<<" VNFs";
+    cout<<"\nIndex\t"<<"Name\t"<<" CAP[cores]\t"<<" Req[cores]\t " <<" PNode \t"<<" VNFs";
     cout<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
     for (unsigned int u = srcVM; u <= numVM; ++u){
-        const VirtualMachineNode<type_res>* vmInfo = VMNode.at(u);
+        const VirtualMachineNode* vmInfo = VMNode.at(u);
         cout<<"\n"<<vmInfo->index<<" |\t";
         cout<<vmInfo->name<<" |\t[";
-        cout<<vmInfo->capacity.cores<<"\t"<<vmInfo->capacity.memory<<"\t"<<vmInfo->capacity.disk<<"\t"<<vmInfo->capacity.cpuSpeed<<"]\t[";
-        cout<<vmInfo->requirement.cores<<"\t"<<vmInfo->requirement.memory<<"\t"<<vmInfo->requirement.disk<<"\t"<<vmInfo->requirement.cpuSpeed<<"]\t";
+        cout<<vmInfo->capacity.cores<<"]\t[";
+        cout<<vmInfo->requirement.cores<<"]\t";
         cout << "PN[" << I_VM2PN.at(u) << "]\t";
         for(const auto& vnfid: vmInfo->vm2VNFs)
             cout<<"F["<<vnfid.first<<char(96+vnfid.second)<<"] ";
@@ -85,8 +80,7 @@ void VirtualMachines<type_res>::showVMs_Description(){
   * @param pnIndex Physical Node Index
   * @tparam type_res resource data type.
   */
-template <class type_res>
-void VirtualMachines<type_res>::assignVMtoPN(int vmIndex, int pnIndex){
+void VirtualMachines::assignVMtoPN(int vmIndex, int pnIndex){
      I_VM2PN[vmIndex] = pnIndex;
 }
 

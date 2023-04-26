@@ -8,8 +8,6 @@
 /* *************** Constants *************** */
 #define SFCsrc 0 ///< to detect source node of sfc
 #define SFCdst (-10) ///< to detect destination node of sfc
-#define SFCseq (-11) ///< to detect sfc is sequential or not
-#define SFCpar (-12) ///< to detect sfc is parallel or not
 #define algostopped false
 #define algosuccess true
 #define noResSeq (-21) ///< no result for sequential sfc obtained by algorithm
@@ -27,31 +25,25 @@
 
 const std::string input_directory = "files_input/", output_directory = "files_output/", diagram_directory = "graphs/";
 const std::string filename_constants   = "constants.txt";
-const std::string filename_network   = "network.txt";
-const std::string filename_virtualmachines   = "virtual_machines.txt";
-const std::string filename_vnf   = "VNFs.txt";
-const std::string filename_sfc   = "SFCs.txt", filename_sfc_parallel = "SFCs_Parallel.txt";
-const std::string filename_vnf_parallelpairs = "VNFsParallelPairs.txt";
-
-const std::string name_sol_layerg = "Algo LayerG";
-const std::string name_sol_partial = "Algo PartialC";
+//const std::string filename_network   = "network.txt";
+//const std::string filename_virtualmachines   = "virtual_machines.txt";
+//const std::string filename_vnf   = "VNFs.txt";
+//const std::string filename_sfc   = "SFCs.txt", filename_sfc_parallel = "SFCs_Parallel.txt";
+//const std::string filename_vnf_parallelpairs = "VNFsParallelPairs.txt";
+enum {pktNoCopy=1, pktCopy=2};
+const std::string name_layerg = "Algo LayerG";
+const std::string name_partial = "Algo PartialC";
 
 /* *************** Default Values *************** */
 unsigned int packetBodySize = 1000, packetHeaderSize = 24; ///<Size of the Network Packet Body and Header. in Bytes. Type = unsigned int Range[0,4294967295].
 unsigned int factor_packet = 8; ///<factor to multiply in order to convert packet size in bits. 1 Byte is 8 bits
 
 unsigned int bandwidthNW = 10; ///<Bandwidth of the Network. in Mega bits per second. 1Gb = 1000 Mb. Type = unsigned int Range[0,4294967295]. *Mb[0,4294967295], Gb_in_Mb[1000 , 4294967.295].
-unsigned int factor_bandwidth = 1000000;  ///< factor to multiply to convert bandwidth in bits/seconds.
+unsigned int factor_bandwidth = 1000;  ///< factor to multiply to convert bandwidth in bits/miliseconds.
 
-unsigned int speedOfLight = 300000000;///<speed of light in vaccum 3 * 10^8 m/s
+unsigned int speedOfLight = 300000;///<speed of light in vaccum 3 * 10^8 m/s
 type_delay velocityFactor = 1.0; //<velocity factor of transmission medium. vaccum = 1.0. copper wise = 0.7
-type_delay read_write_time_per_bit = 0.077e-3; ///<0.077ms (measured by duplicating a large file of 1 MB in a server with Intel i7-8700 core
-type_delay timesfactor = 1;
-type_delay timesfactor_pkt=1000;
-type_delay timesfactor_tx=10;
-type_delay timesfactor_px=10;
-type_delay timesfactor_fnExe=1;
-type_delay timesfactor_qd=10;
+type_delay read_write_time_per_bit = 0.077; ///<0.077ms (measured by duplicating a large file of 1 MB in a server with Intel i7-8700 core
 
 
 /* *************** PreComputed Values *************** */
