@@ -1,4 +1,4 @@
-cmake-build-*/*
-files_output/**/graphs/
 .idea/
-/files_output/sample0/*
+cmake-build-*/*
+*.exe
+files_output/**/*

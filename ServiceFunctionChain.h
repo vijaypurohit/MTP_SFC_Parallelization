@@ -12,13 +12,14 @@ class ServiceFunctionChain
 public:
     unsigned int index /*!< SFC index */; string name;  /*!< SFC name */ unsigned int numVNF;  /*!< number of VNFs except source and dest node */
     type_delay trafficArrivalRate;  /*!< traffic arrival rate of SFC s. in packets per second. arrival rate < service rate. */
-    vector<unsigned int> vnfSeq; ///< vnfids in sequential manner excluding src (SFCsrc=0) and dest (SFCdst=-10).
     pair<unsigned int,unsigned int> access_nodes; ///< source and destination server index from where sfc originates and goes to.
+    vector<unsigned int> vnfSeq; ///< vnfids in sequential manner excluding src (SFCsrc=0) and dest (SFCdst=-10).
 
 /// parameters found through algorithms.
-    vector<vector<unsigned int>> vnfBlocksPar; ///< vnfids in stage wise, where stg i denotes parallel vnf in ith stage. Exvept src and dest stg.
-    vector<vector<vector<unsigned int>>> allPartParSFC; ///< All the partial paralle VNF blocks of the given sequential SFC.
-
+    vector<vector<unsigned int>> vnfBlocksPar; ///< vnfids in stage wise, where stg i denotes parallel vnf in ith stage. Except src and dest stg.
+    vector<vector<vector<unsigned int>>> allPartParSFC; ///< All the partial parallel VNF blocks of the given sequential SFC, order of parallel vnfs are changed here.
+    vector<vector<vector<unsigned int>>> subsetPartParSFC; ///< subset of all the partials chains found which are in order as of vnfSeq.
+    vector<vector<vector<unsigned int>>>* partialParallelChains; ///< partial chains in consideration whether allPartParSFC or subset
    /*!
      * @param _index SFC index  @param _name SFC name
      * @param _numVNF number of VNFs except source and dest node
@@ -31,72 +32,57 @@ public:
         this->trafficArrivalRate = _trafficArrivalRate;
     }
     ServiceFunctionChain()=default;
-    ~ServiceFunctionChain()  = default;
+    ~ServiceFunctionChain()=default;
 
-    void showSequentialSFC(const unordered_map<unsigned int, unsigned int>&);
-    void showFullyParallelSFC(const unordered_map<unsigned int, unsigned int>&);
-    void showPartialSFC();
+    void showSequentialSFC() const;
+    void showFullyParallelSFC() const;
+    void showAllPartialSFC() const;
+    void showSubsetPartialSFC() const;
 
     [[maybe_unused]] void printOrigSFC(int, const string&);
-};
-
-/*!
- * @brief It is a comparator function used in max heap to sort the SFCs according to the traffic arrival rate in descending order.
- * If traffic rate are same then sort according to the descending order of the length.
- */
-struct comparator_sfc {
-    bool operator()(const ServiceFunctionChain*const& sfc1, const ServiceFunctionChain*const& sfc2) {
-        if(sfc1->trafficArrivalRate == sfc2->trafficArrivalRate){
-            return sfc1->numVNF < sfc2->numVNF;
-        }
-        return sfc1->trafficArrivalRate < sfc2->trafficArrivalRate; /// max heap,
-    }
 };
 
 /*!
  * Show Original Sequential SFC in console.
  * @param VNFType2Inst function to instance mapping.
  */
-void ServiceFunctionChain::showSequentialSFC(const unordered_map<unsigned int, unsigned int>& VNFType2Inst = unordered_map<unsigned int, unsigned int>()){
-    cout<<"\nSeq. SFC:"<<index<<" | TrafficRate: "<<trafficArrivalRate<<" | cntVNFs: "<<numVNF<<" | cntPartial: "<<allPartParSFC.size()<<"\n\t";
+void ServiceFunctionChain::showSequentialSFC() const{
+    cout<<"\nSequential SFCid:"<<index<<" | Len: "<<numVNF<<" | ArrivalRate: "<<trafficArrivalRate<<" | [#subsetPartial: "<<subsetPartParSFC.size()<<" #allPartial: "<<allPartParSFC.size()<<"]\n\t";
     cout << "(ps:"<<access_nodes.first<<" -> ";
-    for(const auto& fn : vnfSeq){
-        cout <<"f"<< fn ;
-        if(!VNFType2Inst.empty())cout<<char(96+VNFType2Inst.at(fn));
-        cout<< "; -> ";
-    } cout << " pd:"<<access_nodes.second<<")";
+    for(const auto& fn : vnfSeq){cout <<"f"<< fn << "; ";} cout << " pd:"<<access_nodes.second<<")";
 }
 
 /*!
  * Show Fully Parallel SFC in console.
  * @param VNFType2Inst function to instance mapping.
  */
-void ServiceFunctionChain::showFullyParallelSFC(const unordered_map<unsigned int, unsigned int>& VNFType2Inst = unordered_map<unsigned int, unsigned int>()){
-    cout<<"\nPar. SFC:"<<index<<" | TrafficRate: "<<trafficArrivalRate<<" | cntVNFs: "<<numVNF<<" | cntPartial: "<<allPartParSFC.size()<<"\n\t";
+void ServiceFunctionChain::showFullyParallelSFC() const{
+    cout<<"\nFully-Parallel SFCid:"<<index<<" | Len: "<<numVNF<<" | ArrivalRate: "<<trafficArrivalRate<<" | [#subsetPartial: "<<subsetPartParSFC.size()<<" #allPartial: "<<allPartParSFC.size()<<"]\n\t";
     cout << "(ps:"<<access_nodes.first<<" -> ";
-    for(const auto& blk: vnfBlocksPar){
-        cout<<" ["; for(int fn: blk){
-                    cout <<"f"<< fn ;
-                    if(!VNFType2Inst.empty())cout<<char(96+VNFType2Inst.at(fn));
-                    cout<<"; ";
-                }
-        cout<<"] ->";
-    } cout << " pd:"<<access_nodes.second<<")";
+    for(const auto& blk: vnfBlocksPar){ cout<<" ["; for(int fn: blk){ cout <<"f"<< fn <<"; ";  }  cout<<"] ";  } cout << " pd:"<<access_nodes.second<<")";
 }
 
 /*!
  * Show all the partial SFC of the given SFC.
  * @param VNFType2Inst function to instance mapping.
  */
-void ServiceFunctionChain::showPartialSFC() {
-    cout << "\nPartial. SFC:" << index << " | TrafficRate: " << trafficArrivalRate << " | cntVNFs: " << numVNF << " | cntPartial: " << allPartParSFC.size();
+void ServiceFunctionChain::showAllPartialSFC() const{
+    cout << "\nAll-Partial-Chains SFCid:"<<index<<" | Len: "<<numVNF<<" | ArrivalRate: "<<trafficArrivalRate<<" | [#subsetPartial: "<<subsetPartParSFC.size()<<" #allPartial: "<<allPartParSFC.size()<<"]\n\t";
     for (int ppid=0; ppid<allPartParSFC.size(); ppid++) {
-        cout<<"\n\tid:"<<ppid<<":: ";
-        for (const auto &blk: allPartParSFC[ppid]) {
-            cout << "[";
-            for (int fn: blk) { cout << "f" << fn << "; "; }
-            cout << "] ";
-        }
+        cout<<"\n\tpid:"<<ppid<<":: ";
+        for (const auto &blk: allPartParSFC[ppid]) { cout << "["; for (int fn: blk) { cout << "f" << fn << "; "; } cout << "] "; }
+    }
+}
+
+/*!
+ * Show all the partial SFC of the given SFC.
+ * @param VNFType2Inst function to instance mapping.
+ */
+void ServiceFunctionChain::showSubsetPartialSFC()const {
+    cout << "\nSubset-Partial-Chains SFCid:"<<index<<" | Len: "<<numVNF<<" | ArrivalRate: "<<trafficArrivalRate<<" | [#subsetPartial: "<<subsetPartParSFC.size()<<" #allPartial: "<<allPartParSFC.size()<<"]\n\t";
+    for (int spid=0; spid<subsetPartParSFC.size(); spid++) {
+        cout<<"\n\tsid:"<<spid<<":: ";
+        for (const auto &blk: subsetPartParSFC[spid]) {cout << "[";for (int fn: blk) { cout << "f" << fn << "; "; } cout << "] ";    }
     }
 }
 
@@ -141,10 +127,10 @@ void ServiceFunctionChain::printOrigSFC(const int type, const string& testDirNam
             "  rankdir=LR; " << endl << endl;
     fout << "node [fixedsize=shape width=0.45 shape=circle color="<<nodeColor<<" fontcolor="<<nodeFontColor<<"] "<<endl;
     fout << "edge [color="<<edgeColor<<" fontcolor="<<edgeFontColor<<" fontsize=12]"<<endl;
-    fout << SFCsrc << " [label = \"src\", fillcolor="<<srcDstFillColor<<" fontcolor="<<srcDstFontColor<<"]"<< endl;
-    fout << SFCdst << " [label = \"dst\", fillcolor="<<srcDstFillColor<<" fontcolor="<<srcDstFontColor<<"]"<< endl;
+//    fout << SFCsrc << " [label = \"src\", fillcolor="<<srcDstFillColor<<" fontcolor="<<srcDstFontColor<<"]"<< endl;
+//    fout << SFCdst << " [label = \"dst\", fillcolor="<<srcDstFillColor<<" fontcolor="<<srcDstFontColor<<"]"<< endl;
 
-    int src = SFCsrc;
+    int src = 0;
     qLoGraph.push(src);
     visitedBFS[src]=true;
 
@@ -154,7 +140,7 @@ void ServiceFunctionChain::printOrigSFC(const int type, const string& testDirNam
     while (!qLoGraph.empty())		// Level order Traversal
     {
         u_val = qLoGraph.front();  qLoGraph.pop();
-        if(u_val != SFCsrc and u_val != SFCdst)
+        if(u_val != 0 and u_val != -1)
             fout << u_val << " [label = <&fnof;<sub>"<<u_val<<"</sub>>]"<< endl;
 
         for(auto w: adj[u_val]){

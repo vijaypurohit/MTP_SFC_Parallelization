@@ -65,13 +65,13 @@ type_delay calcD_QueuingDelay( const type_delay& cSFCArrivalRate, const VNFNode&
     if(oldUtilization.count(fnType) and oldUtilization.at(fnType).count(fnInstId)) ///< old utilization till now of VNF
         lambda += oldUtilization.at(fnType).at(fnInstId);
 
-    if(lambda > mu_f){// otherwise queuing delay will be negative
+    if(lambda >= mu_f){// otherwise queuing delay will be negative
         return lambda/mu_f ; ///< utne factor me delay maximise kr do
 //        return std::numeric_limits<type_delay>::max();  // we want to punish this mapping such that with this mapping time is maximum
     }
-    else if(lambda == mu_f){// otherwise queuing delay will be infinite,but we can still maximise it to 100% utilization
-        return 1;  //
-    }
+//    else if(lambda == mu_f){// otherwise queuing delay will be infinite,but we can still maximise it to 100% utilization
+//        return 1;  //
+//    }
     return (lambda / (mu_f * (mu_f - lambda)));
 }
 
@@ -381,7 +381,7 @@ type_delay calcD_ParallelSFC(const ServiceFunctionChain& cSFC, const vector<vect
  */
 
 type_delay calcD_SequentialSFC(const ServiceFunctionChain& cSFC, const unordered_map<unsigned int, unsigned int>& X_VNFType2Inst,
-                               const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& oldUtilization,
+                               const unordered_map<unsigned int,  unordered_map<unsigned int, type_delay>>& oldUtilization,
                                const Simulations& Simulate,
                                bool showInConsole=false, bool showInConsoleDetailed=false){
 

@@ -13,9 +13,7 @@ class NodeCapacity
     ~NodeCapacity() = default;
 };
 
-/*!
- * Hold Node Data
- */
+/*!  Hold Node Data */
 class PhysicalNode{
 public:
     /// \brief physical node index. Type int.
@@ -62,8 +60,8 @@ public:
      * @param _numEdges Total Edges in network
      * @param _sourceVertex default 1, loop from 1 to <= numVertexes
      */
-    PhysicalGraph(unsigned int _numVertexes, unsigned int _numEdges, unsigned int _sourceVertex = 1) {
-        srcV = _sourceVertex; numV = _numVertexes; numE = _numEdges;
+    PhysicalGraph(unsigned int _numVertexes, unsigned int _numEdges) {
+        srcV = 1; numV = _numVertexes; numE = _numEdges;
         mat = vector<vector<type_wgt>>(numV + 1, vector<type_wgt>(numV + 1, 0));
         dist = vector<vector<type_wgt>>(numV + 1, vector<type_wgt>(numV + 1, 0));
         nextHop = vector<vector<unsigned int>>(numV + 1, vector<unsigned int>(numV + 1, 0));
@@ -71,32 +69,16 @@ public:
     PhysicalGraph() = default;
     ~PhysicalGraph() = default;
 
-    void setNumOfEdges(const unsigned int& val){
-        this->numE = val;
-    }
-
     [[maybe_unused]] void showPNs_Description() const;
     [[maybe_unused]] void showAdjMatrix() const;
     [[maybe_unused]] void showAllPairsShortestPath() const;
 
+    void setNumOfEdges(const unsigned int& val){ this->numE = val; }
     void calcAllPairsShortestPath();
-
-    bool calcClusteringCoefficient(bool);
-//    void printPhysicalGraph(const string&) const;
     vector<unsigned int> constructShortestPath(const unsigned int &FromSrc, const unsigned int &ToDst);
+    bool calcClusteringCoefficient(bool);
 };
 
-/*!
- * Show Network Adjacency List in console.
- */
-//void PhysicalGraph::showAdjList()const {
-//    cout << "\n\n Adjacency List G(" << numV<<", "<<numE<<") ::";
-//    for (unsigned int v = srcV; v <= numV; ++v) {
-//        cout << "\n V["<< v << "]:";
-//        for (const auto edge : adj[v])
-//            cout << " -> (" << edge->v<<", "<<edge->wt<<")";
-//    }
-//}
 
 /*!  Show Network Adjacency Matrix in console.*/
 void PhysicalGraph::showAdjMatrix() const{
@@ -259,99 +241,5 @@ bool PhysicalGraph::calcClusteringCoefficient(bool showInConsoleDetailed = false
     if(debug)cout<<"\n\tClustering Coeff mean:"<<clusteringcoeff_mean<<" | global:"<<clusteringcoeff_global;
     return true;
 }//calcClusteringCoefficient
-
-
-//
-//[[maybe_unused]] void PhysicalGraph::printPhysicalGraph(const string& testDirName) const{
-//    if (mat.empty()) {
-//        cout << "Network Graph is Empty."<<endl;
-//        return;
-//    }
-//
-//    ofstream fout;
-//    string fileName = "NetGraph_G_"+to_string(numV)+"_"+to_string(numE); ///< (Network Graph + V + E) name without space
-//    string filepath = output_directory+testDirName+diagram_directory+fileName; ///<path to .gv file without extention
-//    string filepathExt = filepath+".gv"; ///<filepath with extention of .gv
-//    fout.open(filepathExt.c_str(), ios::out);
-//    if (!fout) {
-//        string errorMsg = "File "+filepathExt+ " failed to open. Function: ";
-//        fout.clear();
-//        throw runtime_error(errorMsg+ __FUNCTION__);
-//    }
-//    if(debug)cout<<"\n[Function Running: "<<__FUNCTION__<<"] File:"<<filepathExt<<endl;
-///**********************/
-//    queue<unsigned int> qLoGraph;		// queue level order Graph
-//    vector<bool> visitedNodes(numV+1, false); // bfs visited array, size= number of vertexes + 1 (1 based indexing)
-//    vector<int> level(numV+1); // level array, size= number of vertexes
-//    vector<string> rankSame(numV+1);// array to keep same rank node in one level, size= number of vertexes
-//    vector<vector<bool>> visitedEdges(numV+1, vector<bool>(numV+1, false));
-//
-//    int max_level=1;
-//    unsigned int u_val, v_val;
-//    const string& nodeColor = "darkslateblue", nodeFontColor = "firebrick4";
-//    const string& edgeColor = "darkslateblue", edgeFontColor = "firebrick4";
-///**********************/
-//    fout << "graph "<<fileName<<" {" << endl;
-//    fout << "  label = \"Network Graph G ("<<numV<<","<<numE<<")\" \n";
-//    fout << "  ranksep=\"equally\"; \n"
-//            "  rankdir=LR; " << endl << endl;
-//    fout << "node [fixedsize=shape margin=0.3 width=0.6 shape=circle color="<<nodeColor<<" fontcolor="<<nodeFontColor<<"] "<<endl;
-//    fout << "edge [color="<<edgeColor<<" fontcolor="<<edgeFontColor<<" fontsize=12]"<<endl;
-//
-//    unsigned int src = srcV;
-//    qLoGraph.push(src);
-//    visitedNodes[src]=true;
-//    level[src]=0;
-//    rankSame[level[src]].append(to_string(src)).append("; ");
-//
-//    while (!qLoGraph.empty())		// Level order Traversal
-//    {
-//        u_val = qLoGraph.front();  qLoGraph.pop();
-//        fout << u_val << " [label = <&eta;<sub>"<<u_val<<"</sub>>];"<< endl;
-//        for(const auto edge: adj[u_val]){
-//            v_val = edge->v;        //adj node value
-//            if(!visitedNodes[v_val] ){
-//                visitedNodes[v_val]=true;
-//                qLoGraph.push(v_val);
-//
-//                level[v_val]=level[u_val]+1;
-//                if(level[v_val]+1>max_level)max_level++;
-//                rankSame[level[v_val]].append(to_string(v_val)).append("; ");
-//            }
-//            if(!visitedEdges[u_val][v_val]) // add edges for graphviz
-//            {
-//                visitedEdges[u_val][v_val] = visitedEdges[v_val][u_val] = true;
-//                fout <<"\t"<< u_val << " -- " << v_val <<" [label ="<<mat[u_val][v_val]<<"]"<< endl;
-//            }
-//        }//for adj
-//    }//while qLoGraph
-//
-///*  // Printing Edges and Nodes using Adjacency Matrix
-//    for(u_val = srcV; u_val <= numV; u_val++)
-//    {
-//        fout << u_val << " [label = <&eta;<sub>"<<u_val<<"</sub>>];"<< endl;
-//        for (v_val = u_val+1; v_val<=numV ; ++v_val) {
-//            if(mat[u_val][v_val] != (float)0){
-//                fout <<"\t"<< u_val << " -- " << v_val <<" [label ="<<mat[u_val][v_val]<<"]"<< endl;
-//            }
-//        }
-//        fout << endl ;
-//    }
-//*/
-//
-//    //printing node with same level together
-//    for(int i=0; i<max_level; i++){
-//        if(!rankSame[i].empty())
-//            fout << "{rank = same; " << rankSame[i] << "}; " << endl;
-//    }//for i
-//    fout << "}" << endl;
-///**********************/
-//    fout.close();
-//
-//    string cmd = "dot -Tpng "+filepathExt+" -o "+filepath+".png";
-//    system((const char*)cmd.c_str());
-//    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"]"<<" Graphviz: Original Network GraphG ("<<numV<<","<<numE<<") printed. File:"<<filepath<<".png \n";
-//    if(!debug)remove(filepathExt.c_str());
-//}
 
 #endif //SFC_PARALLELIZATION_PHYSICALGRAPH_H

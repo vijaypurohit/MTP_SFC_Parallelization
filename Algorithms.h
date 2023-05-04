@@ -2,23 +2,32 @@
 // Created by vijay on 01-04-2023.
 //
 
+
 #ifndef SFC_PARALLELIZATION_ALGORITHMS_H
 #define SFC_PARALLELIZATION_ALGORITHMS_H
 
-/*!
- * Dynamic Program to search all the available sequential cluster sizes for a Chain C of length K
+
+/*! Dynamic Program to search all the available COMPOSITION for a SFC of length K.\n
+ * A COMPOSITION of an integer n is a tuple (ordered list) of positive integers whose elements sum to n.
+ * (sometimes also called integer composition, ordered partition or ordered integer partition). This is an additive representation of n.  \n
+ * A part in a composition is sometimes also called a summand.
+ * A composition of n into k (positive) parts is an ordered k-tuple (x1, . . . , xk) with each xi ∈ N and x1 + · · · + xk = n.
+ * If the order is not taken into account then the sum is a partition. \n
+ * c(n) = 2^(n-1) number of composition of size n. \n
+ *  <a href="https://oeis.org/wiki/Integer_compositions">wiki/Integer_compositions</a>
  * @param k small k is starting point, from which you have to calculate, as some will be precalculated and saved.
  * @param K chain length which is maxSFClen, that is upto what you want to calculate all possible enumeration
  * @param showInConsole to show the output in console. Time will increase to 2000-2500 ms
  * @return updated clusterSz[i] for k <= i <=K.\n
+ * @example
  *  K[1] total(1), {{1}} \n
  *  K[2] total(2), {{1,1},{2}} \n
  *  K[3] total(4), {{1,1,1},{2,1},{1,2},{3}} \n
  *  K[4] total(8), {{1,1,1,1},{2,1,1},{1,2,1},{3,1},{1,1,2},{2,2},{1,3},{4}}
  */
-void clusterSizeEnumeration(unsigned int k, unsigned int K, bool showInConsole=false) {
+void integerCompositionsEnumeration(unsigned int k, unsigned int K, bool showInConsole=false) {
     if(k>K) return;
-    if(clusterSz.find(k-1) == clusterSz.end()){
+    if(integerCompositions.find(k - 1) == integerCompositions.end()){
         string errorMsg = "Previous Cluster size k-1="+to_string(k-1)+ " does not exist. Caclculate that first. Function: ";
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
@@ -26,26 +35,27 @@ void clusterSizeEnumeration(unsigned int k, unsigned int K, bool showInConsole=f
     for(unsigned int ki = k; ki<=K; ki++){
         vector<vector<unsigned int>> ans;
         for(unsigned int i=1; i<=ki; i++){
-            for(auto s_dash: clusterSz[ki-i]){
+            for(auto s_dash: integerCompositions[ki - i]){
                 s_dash.push_back(i);
                 ans.push_back(s_dash);
             }
         }
-        clusterSz[ki] = std::move(ans);
+        integerCompositions[ki] = std::move(ans);
     }
 
-    if(showInConsole){
-        cout<<"\nclusterSize={";
+    if(showInConsole == showFinal){
+        cout<<"\nintegerCompositions={";
         for(unsigned int ki = k; ki<=K; ki++){
-            cout<<"\n\tK["<<ki<<"] total("<<clusterSz[ki].size()<<"), {";
-            for(const auto& x: clusterSz[ki]) {
+            cout << "\n\tK[" << ki << "] total(" << integerCompositions[ki].size() << "), {";
+            for(const auto& x: integerCompositions[ki]) {
                 cout<<"{"; for(unsigned int i=0; i<x.size()-1; i++) cout<<x[i]<<","; cout<<x[x.size()-1]<<"},";
             }  cout<<"}";
         } cout<<"\n}end;";
     }
 }
 
-/*! Calculate all possible combination vectors n Choose k for given n and k.
+
+/*! Calculate all possible combination vectors (n Choose k) for given n and k.
  * @param n starting point from which you have to calculate new value, as some will be precalculated and saved.
  * @param N maximum value upto which you want to calculate all possible combination
  * @param showInConsole  to show the output in console. Time will increase to 2000-2500 ms
@@ -55,7 +65,7 @@ void clusterSizeEnumeration(unsigned int k, unsigned int K, bool showInConsole=f
  *      n=3, {k=1, [{1},{2},{3} |       k=2, [{1,2},{1,3},{2,3}] | {k=3, [{1,2,3}] }\n
  *      n=4, {k=1, [{1},{2},{3},{4}] |  k=2, [{1,2},{1,3},{1,4},{2,3},{2,4},{3,4}] | {k=3, [{1,2,3},{1,2,4},{1,3,4}, {2,3,4}] | k=4, [{1,2,3,4}] }
  */
-void all_nCk(unsigned int n, unsigned int N, bool showInConsole=false){
+void find_all_nCk(unsigned int n, unsigned int N, bool showInConsole=false){
     if(n>N) return;
     // Lambda Function to calculate nCk using backtracking application.
     std::function<void(unsigned int,unsigned int,vector<unsigned int>&,unsigned int&,unsigned int&)> combineHelper = [&combineHelper]
@@ -78,7 +88,7 @@ void all_nCk(unsigned int n, unsigned int N, bool showInConsole=false){
             combineHelper(1, kr, cur, ni, kr);
         }
     }
-    if(showInConsole){
+    if(showInConsole == showFinal){
         cout<<"\nnCk={";
         for(unsigned int ni=n; ni<=N; ni++){
             cout<<"\n\tN["<<ni<<"]"<<", {";
@@ -94,137 +104,133 @@ void all_nCk(unsigned int n, unsigned int N, bool showInConsole=false){
     }
 }
 
-/* **************************************************************************************************************** */
-
-
-
-/*! generate all the feasible partial parallel SFC for the given full parallel SFC.
- * @param nVNFs is number of VNFs except src and dest in fully parallel SFC.
- * @param clusterSz for each of the cluster enumeration for size[nVNFs].
- * @param nCk n=block size and k={cluster_i[l] value i.e. l(level) index value dentoes number of function(k) to be chosen as parallel out of all functions(n) in blocks.
- * @param fullParVNFBlocks is fully parallel VNF Blocks in sequence where each block/step denotes all the parallelizable functions in that block/step.
- * @return allPartParSFC All the Partial parallel Clusters of the fully parallel VNF Blocks. Each SFC is without src and dest.
- * @ForExample: fullParVNFBlocks={{1},{2,3,4,5}}, nVNFs:5 (f1,f2,f3,f4,f5).\n
- * Blk(0) = {1} only 1 parallel function, Blk(1) = {2,3,4,5} all 4 are parallel.\n
- * clusterSz[5(size=nVNFs)] = {{1, 2,1,1},{1,4},{3,1,1} ... } so on. cluster_i[l] denotes number of function parallel in that level. \n
- * where cluster_i {1, 2, 1, 1} means in level[0] only one function runs, level[2] = 2 functions run together, and level[3] and level[4] one-one function are there \n
- * {[1], [2,1,1]} is mapped to {[f1], [f2,f3,f4,f4]} such that [ 1-c combination of f1 ]. [2-c combination of f2,f3,f4,f5] . [1-c combination of f2,f3,f4,f5] . [1-c combination of f2,f3,f4,f5] \n
+/*!
+ * @param numPN number of Physical Nodes in the network
+ * @param numVNF  number of Virtual Network Function in the network
+ * @param numOfSFCsNeeded number of sfc to generate
+ * @param arrivalRateRange arrival rate range of each sfc
+ * @param lenOfEachSFC len of each sfc (random or fixed length)
+ * @param fullDirName directory name with slash on which to generate file
+ * @param filename_sfc sfc file to be saved
+ * @return status
  */
-void find_PartialParalleSFCs(bool showInConsole = false, bool showInConsoleDetailed = false){
-    auto numVNF = 4;
-    const vector<vector<unsigned int>>& fullParVNFBlocks = {{1,2,3},{4}};// {{1,2,3},{4}}
-    const unsigned int& nBlk = fullParVNFBlocks.size(); ///< number of blocks of the fully parallel SFC, (including src and dst block)
-    vector<vector<vector<unsigned int>>> allPartParSFC; ///< All the Partial parallel Clusters of the fully parallel VNF Blocks. Each SFC is without src and dest.
-//    const vector<vector<unsigned int>> SK = { {1,  2,1,1},{1, 2,2}, {1,4}, {2,2,1}, {3,1,1} };
-    if(showInConsoleDetailed){
-        cout << "(SRC .";
-        for(const auto& blk: fullParVNFBlocks){
-            cout<<" ["; for(int fn: blk){ cout <<"f"<< fn <<"; "; } cout<<"] .";
-        } cout << " DST)";
+bool GenerateRandomSFCs(const unsigned int& numPN, const unsigned int& numVNF, const unsigned int& numOfSFCsNeeded, const pair<type_delay, type_delay>& arrivalRateRange, const pair<bool, unsigned int>& lenOfEachSFC, const string& fullDirName, const string& filename_sfc){//GenerateRandomSFCs
+
+    const unsigned int srcVNF = 1, srcPN = 1;
+    unsigned int minLenSFC = std::floor(0.3*numVNF); ///< if vnf = 10 or 12 then min length 3
+    unsigned int maxLenSFC = std::floor(0.9*numVNF); ///< if max len of sfc not given then take according to number of VNFs
+    if(maxLenSFC > maxSFCLength) maxLenSFC = maxSFCLength;
+
+    std::mt19937_64 rd_generator(std::chrono::system_clock::now().time_since_epoch().count());
+    std::uniform_real_distribution<type_delay> rd_arrivalrate_distribution(arrivalRateRange.first, arrivalRateRange.second);
+
+    /*const pair<bool, unsigned int> givenMinLenSFC; const pair<bool, unsigned int> givenMaxLenSFC;
+    if(givenMinLenSFC.first and givenMinLenSFC.second > numVNF){ ///< if max len of sfc given then it should be less than number of VNF{
+        cerr<<"\nGiven Minimum Length of SFC ("<<givenMinLenSFC.second<<") is more than number of VNFs ("<<numVNF<<")";
+        return false;
+    }else{
+        minLenSFC = givenMinLenSFC.second;
+    }
+    if(givenMaxLenSFC.first and givenMaxLenSFC.second > numVNF){ ///< if max len of sfc given then it should be less than number of VNF{
+        cerr<<"\nGiven Maximum Length of SFC ("<<givenMaxLenSFC.second<<") is more than number of VNFs ("<<numVNF<<")";
+        return false;
+    }else{
+        maxLenSFC = givenMaxLenSFC.second;
+    }*/
+
+    std::vector<unsigned int> vnfseq(numVNF); ///All the VNFS index present in array index from 0 to numVNF-1 (size = numVNF)
+    std::iota(begin(vnfseq), end(vnfseq), srcVNF); ///< fill with sequence from 1 to numVNF
+
+    std::mt19937 rd_length_generator(std::chrono::system_clock::now().time_since_epoch().count());
+    std::uniform_int_distribution<unsigned int> rd_length_distribution(minLenSFC, maxLenSFC); ///< random distribution for sfc length
+
+//    if(showInConsole == showFinal){
+//        cout<<"\nPN Range: ["<<srcPN<<" - "<<numPN<<"]";
+//        cout<<"\nVNF Range: ["<<srcVNF<<" - "<<numVNF<<"]";
+//        cout<<"\nSFC Range: ["<<minLenSFC<<" - "<<maxLenSFC<<"] : cnt:"<<numOfSFCsNeeded;
+//    }
+
+    std::knuth_b rd_accessnode_generator(std::chrono::system_clock::now().time_since_epoch().count());
+    std::uniform_int_distribution<unsigned int> rd_access_nodes_distribution(srcPN, numPN); ///< sfc access nodes distribution according to physical network
+
+    ofstream fout;
+    string filepathExt = input_directory+fullDirName+filename_sfc;///< path to .gv file without extention
+    fout.open(filepathExt.c_str(), ios::out);
+    if (!fout) {
+        string errorMsg = "File "+filepathExt+ " failed to open. Function: ";
+        fout.clear();
+        throw runtime_error(errorMsg+ __FUNCTION__);
     }
 
-    /// lambda backtrack function to find all partial sfc corresponding to cluster_i and parSFC_Full.
-    std::function<void(unsigned int,vector<vector<unsigned int>>&,unordered_map<unsigned int,vector<unsigned int>>&, unsigned int&)> findAllPartSFC_Backtrack
-            =[&findAllPartSFC_Backtrack, &allPartParSFC, &fullParVNFBlocks]
-                    (unsigned int cur_level_idx, vector<vector<unsigned int>>&partSFC, unordered_map<unsigned int,vector<unsigned int>>& levelInfo, unsigned int& mask)->void
-            {
-                // if current level is equal to total level in cluster/SFC.
-                if(cur_level_idx == levelInfo.size()) {
-                    allPartParSFC.push_back(partSFC);
-                    return;
-                }
+    fout<<numOfSFCsNeeded<<"\n\n";
 
-                unsigned int blkid = levelInfo[cur_level_idx][0], nl = levelInfo[cur_level_idx][1], kl= levelInfo[cur_level_idx][2];
-                for(const vector<unsigned int>& curCombination: nCk[nl][kl]){ //n=4,k=1 {{1}, {2}, {3}, {4}} } | k=2 {{1,2},{1,3},{1,4},{2,3},{2,4},{3,4}} }
-                    bool thisCombinationCanBeVisited = true;
+    for(int idx=0; idx<numOfSFCsNeeded; idx++){//cnt
+        std::shuffle(begin(vnfseq), end(vnfseq), rd_generator); ///< random shuffle the vnfs in array
 
-                    vector<unsigned int> curBlkFunc; //< if we can visit this combination then this vector will be current blk
-                    unsigned int localMask=0;
-                    for(const unsigned int& idx: curCombination){ // check if the curCombination idx{2,3} mapped to block func {fw (id 1-1), fx (id 2-1), fy (id 3-1)} --> fx, fy can be visited or its node already visited.
-                        int fn_id = fullParVNFBlocks[blkid][idx-1];
-                        if((mask & (1<<fn_id)) != 0){ thisCombinationCanBeVisited=false; break; }
-                        curBlkFunc.push_back(fn_id);
-                        localMask |= (1<<fn_id);
-                    }
-                    if(thisCombinationCanBeVisited){
-                        mask |= localMask;
-                        partSFC.push_back(std::move(curBlkFunc));
-                        findAllPartSFC_Backtrack(cur_level_idx+1, partSFC, levelInfo, mask);
-                        mask ^= localMask;
-                        partSFC.pop_back();
-                    }
-                }
-            };
+        unsigned int psrc = rd_access_nodes_distribution(rd_accessnode_generator); ///< sfc src node
+        unsigned int pdst = rd_access_nodes_distribution(rd_accessnode_generator); ///< sfc dst node
+        while(psrc == pdst){  pdst = rd_access_nodes_distribution(rd_accessnode_generator); } ///< if dst node same as src node
 
-
-
-    for(const vector<unsigned int>& cluster: clusterSz[numVNF]){ //
-
-//        if(cluster[0] > fullParVNFBlocks[0].size()) // if in first block(after src blk) 2 function is there, but cluster saying 3 needs to be parallel then continue next cluster.
-//            continue;
-
-        unsigned int cur_level=0; ///< current level at which we have to insert all the nodes
-        unordered_map<unsigned int,vector<unsigned int>> levelInfo;///< this stores level wise info {level i . {0 . blkId, 1.n, 2. k}} to find nCk for block blkId of parSFC_Full
-
-
-        if(showInConsoleDetailed){
-            cout<<"\ncluster["; for(const auto& x: cluster) cout<<x<<" "; cout<<"]";
-        }
-        bool allBlksOfSFCDone = true;
-        // iterate through the blocks and map it to cur cluster.
-        for(unsigned int blk_id=0; blk_id<nBlk; blk_id++){
-            const unsigned int& curBlk_size = fullParVNFBlocks[blk_id].size();  ///< current block size, that is num of VNFs present in it.
-
-            /*!
-             * It checks whether cluster_i is a feasible vector size and we can find same number of parallel VNFs specified by the cluster. cluster_i[l] number of func can run in parallel. \n
-             * If we cannot find the same number of parallel VNFs specified by cluster_i, then it is not feasible. e.g. [2,2] is not feasible for {f1,f2,f3} block. \n
-             * feasible [1, 2,1,1] and {{f1},{f2,f3,f4,f5}} where [1] is mapped to {f1} and  entire [2+1+1] is mapped to {f2,f3,f4,f5}
-             */
-            bool foundMapping=false; unsigned int delta=0; //< delta is range of level [endLevel-curLevel] upto which we can parallelize current block.
-            for(unsigned int li=cur_level, sum_s=0; li<cluster.size() and sum_s < curBlk_size; li++){
-                sum_s += cluster[li]; delta++;
-                if(sum_s == curBlk_size){
-                    foundMapping = true; break;
-                }
+        fout<<idx<<'\n';
+        fout<<rd_arrivalrate_distribution(rd_generator)<<'\t'<<psrc<<' '<<pdst<<'\n';
+        if(lenOfEachSFC.first){ ///< if length of each sfc is constant, take first len vnfs
+            fout<<lenOfEachSFC.second<<'\n';
+            for (int x = 0; x < lenOfEachSFC.second; ++x) {
+                fout << vnfseq[x] << " ";
             }
-            if(!foundMapping) {
-                if(showInConsoleDetailed){ cout<<"\tNot feasible for block{"; for(const auto& x: fullParVNFBlocks[blk_id]) cout<<"f"<<x<<","; cout<<"}";}
-                allBlksOfSFCDone = false; // break lag gya isliye dfs call mt krna
-                break;
+        }else{
+            unsigned int lenOfSFC = rd_length_distribution(rd_length_generator); ///< generate random length
+            fout<<lenOfSFC<<'\n';
+            for (int i = 0; i < lenOfSFC; ++i){
+                fout << vnfseq[i] << ' ';
             }
+        }
+        fout<<"\n\n";
+    }//cnt<=numOfSFCsNeeded
 
-            for(unsigned int li=cur_level; li<cur_level+delta; li++){
-                if(showInConsoleDetailed){
-                    cout<<"\n\tL["<<li+1<<"]: \t";
-                    for(const auto& allComb: nCk[curBlk_size][cluster[li]]) {
-                        cout<<"{"; for(auto node: allComb) cout<<"f"<<fullParVNFBlocks[blk_id][node-1]<<",";  cout<<"}";
-                    }
-                }
-                levelInfo[li] = {blk_id, curBlk_size, cluster[li]};
-            }
-            cur_level = cur_level+delta;
-        }
-        if(allBlksOfSFCDone) { //            cout<<"dfs called.";
-            vector<vector<unsigned int>>partSFC; unsigned int mask=0;
-            findAllPartSFC_Backtrack(0, partSFC, levelInfo, mask);
-        }
+    return true;
+}//GenerateRandomSFCs
+
+/*!
+ * @param numOfVNFsNeeded number of vnfs to be generated
+ * @param serviceRateRange range of service rate for each vnf
+ * @param funExeTimeRange range of function time for each vnf
+ * @param fullDirName full directory name
+ * @param filename_vnfs filename of vnf to be saved
+ * @return status
+ */
+bool GenerateRandomVNFs(unsigned int& numOfVNFsNeeded, const pair<type_delay, type_delay>& serviceRateRange, const pair<type_delay, type_delay>& funExeTimeRange, const string& fullDirName, const string& filename_vnfs){//GenerateRandomVNFs
+
+    if(numOfVNFsNeeded > maxNumVNFs) numOfVNFsNeeded = maxNumVNFs;
+
+    const unsigned int srcVNF = 1;
+
+    std::mt19937_64 rd_generator(std::chrono::system_clock::now().time_since_epoch().count());
+    std::uniform_real_distribution<type_delay> rd_servicerate_distribution(serviceRateRange.first, serviceRateRange.second);
+    std::uniform_real_distribution<type_delay> rd_fnexetime_distribution(funExeTimeRange.first, funExeTimeRange.second);
+
+
+    ofstream fout;
+    string filepathExt = input_directory+fullDirName+filename_vnfs;///< path to .gv file without extention
+    fout.open(filepathExt.c_str(), ios::out);
+    if (!fout) {
+        string errorMsg = "File "+filepathExt+ " failed to open. Function: ";
+        fout.clear();
+        throw runtime_error(errorMsg+ __FUNCTION__);
     }
 
-    if(showInConsole){
-        cout<<"\nTotal PartSFC:"<<allPartParSFC.size();
-        for(int idx=0; idx<allPartParSFC.size(); idx++){
-            const auto& PCs = allPartParSFC[idx];
-            cout<<"\nPC["<<idx+1<<"] ( "; unordered_map<unsigned int,unsigned int> freq;
-            for(const auto& blks: PCs){
-                cout<<"["; for(auto fn_id: blks){
-                    cout<<"f"<<fn_id<<" ";
-                    if(++freq[fn_id]>1)  throw runtime_error("Error in calculation of allPartSFC. Some fn_id repeated");
-                } cout<<"]";
-            } cout<<")";
-        }
-    }
+    fout<<numOfVNFsNeeded;
 
-}
+
+    for(int idx=1; idx<=numOfVNFsNeeded; idx++){//cnt
+        fout<<"\nVNF"<<idx<<'\n';
+        fout<<idx<<'\t'<<1<<'\t';
+        fout<<rd_servicerate_distribution(rd_generator)<<'\t'<<rd_fnexetime_distribution(rd_generator);
+    }//cnt<=numOfSFCsNeeded
+
+    return true;
+}//GenerateRandomVNFs
+
 
 /* **************************************************************************************************************** */ 
 /*! Function to find all instances combination of parVNF in that stage. . find stage to instnace combination of given block of sfc.
@@ -235,7 +241,7 @@ void find_PartialParalleSFCs(bool showInConsole = false, bool showInConsoleDetai
      * @param[out] stg2InstCombinations It stores all the stage wise instances combination of all stage in partParSFC. {stgid . 2d{ 1d instances combinations{pair<fun, inst>}  }}
      * @param[in] oldUtilization utilization of the vnfs till now based on previous deployment.
      * @param[in] SimTest Simulation Object which contains SFC on which to perform the test.
-     * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping
+     * @param[in]  cSFC  given SFC object for which we have to find minimum delay mapping
      * For example:  partParSFC = { {1}, {6,4}, {5} }  \n
      * stg 0 (1 function has 3 instances),     B[0] = 2d{  1d[ pair<1a> ] [<1b>] [<1c>]  } \n
      * stg 1 (2 par function 2 & 3 instances), B[1] = 2d{ 1d[<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c] } \n
@@ -246,11 +252,10 @@ void find_PartialParalleSFCs(bool showInConsole = false, bool showInConsoleDetai
         inst = 4 (exe time: 580-600ms) (possibilites: 10 48 576 )\n
         inst = 5 (exe time: 5700-5800ms) (possibilites: 97 65 625)\
      */
-
 void construct_stageInstanceCombination(unsigned int csfi, vector<pair<unsigned int,unsigned int>>& curInstComb,  const unsigned int& stgid, const vector<unsigned int>& curStg,
                                         unordered_map<unsigned int,  vector<vector<pair<unsigned int,unsigned int>>>> &stg2InstCombinations,
                                         const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& oldUtilization,
-                                        const Simulations& SimTest, const unsigned int& csfcidx){ //construct_stageInstanceCombination
+                                        const Simulations& SimTest, const ServiceFunctionChain& cSFC ){ //construct_stageInstanceCombination
     
     if(csfi == curStg.size()){ // all functions in stage iterated. curStg.size()==numOfFunction in that stage.
         stg2InstCombinations[stgid].push_back(curInstComb); // push the one answer into combination stg.
@@ -259,26 +264,28 @@ void construct_stageInstanceCombination(unsigned int csfi, vector<pair<unsigned 
     const unsigned int fnType = curStg[csfi];
     unsigned int totInstancs = SimTest.finalInstancesCount.at(fnType);
     for(unsigned int fnInstId=1; fnInstId<=totInstancs; fnInstId++){
-        if (oldUtilization.count(fnType) and oldUtilization.at(fnType).count(fnInstId) and ///< old utilization till now of VNF
-            (oldUtilization.at(fnType).at(fnInstId) + SimTest.allSFC[csfcidx].trafficArrivalRate >  SimTest.VNFNetwork.VNFNodes.at(fnType).serviceRate))  {
-            continue; // don't take this instance if its utilisation become more than service rate of function.
+        if (ifRejectSFC and oldUtilization.count(fnType) and oldUtilization.at(fnType).count(fnInstId) and ///< old utilization till now of VNF
+            (oldUtilization.at(fnType).at(fnInstId) + cSFC.trafficArrivalRate >  SimTest.VNFNetwork.VNFNodes.at(fnType).serviceRate))  {
+            continue; // don't take this instance if its utilization become more than service rate of function.
         }
         curInstComb.emplace_back(fnType, fnInstId); // push current instance
-        construct_stageInstanceCombination(csfi+1, curInstComb, stgid, curStg, stg2InstCombinations, oldUtilization, SimTest, csfcidx); // call function for next instance
+        construct_stageInstanceCombination(csfi+1, curInstComb, stgid, curStg, stg2InstCombinations, oldUtilization, SimTest, cSFC ); // call function for next instance
         curInstComb.pop_back(); // pop curInstComb instance and push next instance of same function.
     }
 }//construct_stageInstanceCombination
 
 /*! For a given stg2InstCombinations, it enumerate all the possible mappings we can give in each stage and calculate delay on the go.
      * @param stgid stgId/blockId for which we are enumerating instances.
+     * @param prv_combination_utilization max utilization of the current path
      * @param curMapping cur function.instance mapping we iterating out of all possibilites.
      * @param bstMapping to save best mapping overall among all partial parallel chain/and its all instances.
      * @param minBstDelay min delay among all partial parallel chain/and its all instances.
+     * @param minBstUtil min utilization of the path chosen with minBstDelay and among all paths with minBstDelay choose minUtil
      * @param partParSFC given partial SFC
      * @param stg2InstCombinations It contains all the stage wise instances combination of all stage in partParSFC. {stgid . 2d{ 1d instances combinations{pair<fun, inst>}  }}
      * @param[in] oldUtilization utilization of the vnfs till now based on previous deployment.
      * @param[in] SimTest Simulation Object which contains SFC on which to perform the test.
-     * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping
+     * @param[in]  cSFC  given SFC object for which we have to find minimum delay mapping
      * @param showInConsoleDetailed
      * For example:  partParSFC = { {1}, {6,4}, {5} }  \n
      * stg 0 (1 function has 3 instances),     B[0] = 2d{  1d[ pair<1a> ] [<1b>] [<1c>]  } \n
@@ -294,62 +301,61 @@ void construct_stageInstanceCombination(unsigned int csfi, vector<pair<unsigned 
         3[1c 6b 4b 5b ]        34[1c 6b 4c 5a ]        35[1c 6b 4c 5b ] \n
      * 1 stage . 10 parallel func each with 5 max instances . 5^10 possibilities or 97,65,625 instances.
      */
-
-void enumerate_InstanceCombination_CalcDelay(unsigned int stgid, unordered_map<unsigned int,unsigned int>& curMapping, unordered_map<unsigned int,unsigned int>& curBstMapping, type_delay& minBstDelay, 
+void enumerate_InstanceCombination_CalcDelay(unsigned int stgid,  type_delay prv_combination_utilization, unordered_map<unsigned int,unsigned int>& curMapping, unordered_map<unsigned int,unsigned int>& curBstMapping, type_delay& minBstDelay, type_delay& minBstUtil,
                                              const vector<vector<unsigned int>>& partParSFC,  const unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> >& stg2InstCombinations,
                                              const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& oldUtilization,
-                                             const Simulations& SimTest, const unsigned int& csfcidx,
-                                             const bool& showInConsoleDetailed = false){//enumerate_InstanceCombination_CalcDelay
+                                             const Simulations& SimTest, const ServiceFunctionChain& cSFC, const int& showInConsole = dontShow){//enumerate_InstanceCombination_CalcDelay
     if(stgid == partParSFC.size()) { // found one mapping then find corresponding delay 
-        type_delay parSfcCost =  parSfcCost = calcD_ParallelSFC(SimTest.allSFC[csfcidx], partParSFC, curMapping, oldUtilization, SimTest);
-        if( parSfcCost < minBstDelay){ // current mapping ka delay is less than min delay among partial sfc all instances.
+        type_delay parSfcCost = calcD_ParallelSFC(cSFC, partParSFC, curMapping, oldUtilization, SimTest);
+
+        if((parSfcCost < minBstDelay) or (approximatelyEqual<type_delay>(parSfcCost,minBstDelay,0.0005) and prv_combination_utilization < minBstUtil)){ // current mapping ka delay is less than min delay among partial sfc all instances.
             minBstDelay =  parSfcCost;
             curBstMapping = curMapping;
+            minBstUtil = prv_combination_utilization;
         }
-        else
-            return;
-        if(showInConsoleDetailed){ /// showing instance and its delay
+        else return;
+        if(showInConsole >= showDetailed){ /// showing instance and its delay
             cout<<"\n\t"<<"["; for(const auto &blk: partParSFC){ for(const auto& fnid: blk){ cout<<fnid<<char(96+curMapping.at(fnid))<<" ";  }  } cout<<"]";
-            cout<<"["<<parSfcCost<<"ms]";
+            cout<<"["<<parSfcCost<<" ] ("<<prv_combination_utilization<<" %)";
         }
         return;
     }
     for(const vector<pair<unsigned int,unsigned int>>& instComb: stg2InstCombinations.at(stgid)){
+        type_delay utilization_sum_lgy=0, servicerate_sum_lgy=0;
         for(const auto& [fnType, fnInstId]: instComb) {
             curMapping[fnType] = fnInstId;
+            if (oldUtilization.count(fnType) and oldUtilization.at(fnType).count(fnInstId)){ ///< old utilization till now of VNF
+                utilization_sum_lgy += oldUtilization.at(fnType).at(fnInstId);
+            } servicerate_sum_lgy += SimTest.VNFNetwork.VNFNodes.at(fnType).serviceRate;
         }
-        enumerate_InstanceCombination_CalcDelay(stgid+1,curMapping, curBstMapping, minBstDelay, partParSFC, stg2InstCombinations, oldUtilization, SimTest, csfcidx,showInConsoleDetailed);
+        enumerate_InstanceCombination_CalcDelay(stgid+1, max((utilization_sum_lgy/servicerate_sum_lgy)*100, prv_combination_utilization), curMapping, curBstMapping, minBstDelay, minBstUtil, partParSFC, stg2InstCombinations, oldUtilization, SimTest, cSFC, showInConsole);
     }
 }//enumerate_InstanceCombination_CalcDelay
 
-/*! For a given SFC and its all partial parallel function, find all the possibile instance mappings (brute force).
- * Intance mapping is based on min delay of the path.
- * For a partial parallel chain, it first find all its instance combinations in each stage, then out of all instance mappings it find min delay.
- * @param[in] SimTest Simulation Object which contains SFC on which to perform the test.
- * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping
- * @param showInConsole print in the console.
- * @param showInConsoleDetailed print of each step in the console
+/*! FINDING THE SFC's VNF Instance Assignment IF PARALLELISM is DISABLED IN SFC
+ * @param SimTest Simulation Object which contains SFC on which to perform the test.
+ * @param cSFC  given SFC object for which we have to find minimum delay mapping
+ * @param showInConsole output in console (0 don't show, 1 final output, 2 detailed output)
+ * @return status of the algorithm.
  */
-int partialChains_Sequential_Deployment(Simulations& SimTest, const unsigned int& csfcidx,  const vector<vector<unsigned int>>& seqSFC,
-                                        bool showInConsole = false, bool showInConsoleDetailed = false) {//partialChains_Sequential_Deployment
-    const ServiceFunctionChain& cSFC = SimTest.allSFC[csfcidx];
-    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_partial].sfcsol[cSFC.index];
-    const unsigned int szStages = seqSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
+int bruteForce_Sequential_Deployment(Simulations& SimTest, const ServiceFunctionChain& cSFC, const int& showInConsole = dontShow) {//bruteForce_Sequential_Deployment
+    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index];
+    const vector<vector<unsigned int>>& seqSFC = (*cSFC.partialParallelChains).front();
+    const unsigned int& szStages = seqSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
     /*! level to Instances Combinations = set of instance combination in block/stage/level index j. {stgid . 2d{ 1d instances combinations{pair<fun, inst>}  }} */
     unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> > stg2InstCombinations;
     for(unsigned int stgid=0; stgid<szStages; stgid++){      // finding instances possibilities of each stage.
         const auto& curStg = seqSFC[stgid];
         vector<pair<unsigned int,unsigned int>> curInstComb;
-        construct_stageInstanceCombination(0, curInstComb, stgid, curStg, stg2InstCombinations, SimTest.TestsResult[name_partial].seq_utilization, SimTest, csfcidx);
+        construct_stageInstanceCombination(0, curInstComb, stgid, curStg, stg2InstCombinations, SimTest.TestsResult[name_bruteForce].seq_utilization, SimTest, cSFC );
         if(stg2InstCombinations.find(stgid) == stg2InstCombinations.end()){
-            singleSfcRes.seq_pid = noResDueToNoStg;
-            return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
+            return singleSfcRes.seq_status = noResDueToNoStg; ///< if there is no instance combinations in current stage then we can't proceed
         }
     }//stgid<szStages finding instances possibilities of each stage.
          
-    if(showInConsoleDetailed){ // showing partParSFC info
-        cout<<"\n seqSFC:"; for(const auto& blks: seqSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<") ---------- - --------- - ------";
+    if(showInConsole >= showDetailed){ // showing partParSFC info
+        cout<<"\n Sequential-SFC:"; for(const auto& blks: seqSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; }  
         for(int cur_lvl=0; cur_lvl<szStages; cur_lvl++){  // showing stage wise combination
             cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2InstCombinations[cur_lvl].size()<<") { ";
             for(const auto& instComb: stg2InstCombinations[cur_lvl]){
@@ -360,44 +366,49 @@ int partialChains_Sequential_Deployment(Simulations& SimTest, const unsigned int
 
     /*! finding all the mapping possibilites for the current partParSFC instance combination at each stage.*/
     unordered_map<unsigned int,unsigned int> curMapping; ///< iterating mapping variable
-    enumerate_InstanceCombination_CalcDelay(0, curMapping,  singleSfcRes.seq_fninstmap, singleSfcRes.seq_delay, seqSFC ,stg2InstCombinations, SimTest.TestsResult[name_partial].seq_utilization, SimTest, csfcidx, showInConsoleDetailed);//, showInConsoleDetailed
-    singleSfcRes.seq_pid = 0;
+    enumerate_InstanceCombination_CalcDelay(0, 0, curMapping, singleSfcRes.seq_fninstmap, singleSfcRes.seq_delay, singleSfcRes.seq_load, seqSFC , stg2InstCombinations, SimTest.TestsResult[name_bruteForce].seq_utilization, SimTest, cSFC, showInConsole);//, showInConsoleDetailed
+
     for(const auto& [fn, fninst]: singleSfcRes.seq_fninstmap){
-        SimTest.TestsResult[name_partial].seq_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_bruteForce].seq_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+//        cout<<"{"<<fn<<","<<fninst<<"},";
     }
-    if(showInConsole){
-        cout<<"\n PartialEnumeration: SFC["<<cSFC.index<<"]   Seq: idx["<<singleSfcRes.seq_pid<<"]  delay:["<<singleSfcRes.seq_delay<<"] :";
-        for(const auto &blk: cSFC.allPartParSFC[singleSfcRes.seq_pid]) {
-            cout<<"[";  for(const auto& fnid: blk){
-                cout<<fnid<<char(96+singleSfcRes.seq_fninstmap.at(fnid))<<" ";
-            }   cout<<"]";
-        }
+    if(showInConsole >= showFinal){
+        cout<<"\n BruteForce-Instance-Assignment:: Sequential: SFCid:"<<cSFC.index<<" | delay:["<<singleSfcRes.seq_delay<<"] ("<<singleSfcRes.seq_load<<"%) :(";
+        for(const auto& fnid : cSFC.vnfSeq){
+            cout<<"f"<<fnid<<char(96+singleSfcRes.seq_fninstmap.at(fnid))<<"; ";
+        } cout<<")";
     }
-    return algosuccess;
-}//partialChains_Sequential_Deployment
+    return singleSfcRes.seq_status = algosuccess;
+}//bruteForce_Sequential_Deployment
 
+/*! FINDING THE SFC's VNF Instance Assignment IF Full PARALLELISM Enabled IN SFC
+ * @param SimTest Simulation Object which contains SFC on which to perform the test. 
+ * @param cSFC  given SFC object for which we have to find minimum delay mapping
+ * @param showInConsole output in console (0 don't show, 1 final output, 2 detailed output) 
+ * @return status of the algorithm.
+ */
+int bruteForce_FullParallel_Deployment(Simulations& SimTest, const ServiceFunctionChain& cSFC, const int& showInConsole = dontShow) {//bruteForce_FullParallel_Deployment
+    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index];
+    const vector<vector<unsigned int>>& fullParSFC = cSFC.vnfBlocksPar;
+    const unsigned int& szStages = fullParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
-int partialChains_FullParallel_Deployment(Simulations& SimTest, const unsigned int& csfcidx,  const vector<vector<unsigned int>>& fullParSFC,
-                                           bool showInConsole = false, bool showInConsoleDetailed = false) {//partialChains_FullParallel_Deployment
-    const ServiceFunctionChain& cSFC = SimTest.allSFC[csfcidx];
-    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_partial].sfcsol[cSFC.index];
-
-    const unsigned int szStages = fullParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
-
+    unsigned long long totalInstComb = 1;
     /*! level to Instances Combinations = set of instance combination in block/stage/level index j. {stgid . 2d{ 1d instances combinations{pair<fun, inst>}  }} */
     unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> > stg2InstCombinations;
     for(unsigned int stgid=0; stgid<szStages; stgid++){      // finding instances possibilities of each stage.
         const auto& curStg = fullParSFC[stgid];
         vector<pair<unsigned int,unsigned int>> curInstComb;
-        construct_stageInstanceCombination(0, curInstComb, stgid, curStg, stg2InstCombinations, SimTest.TestsResult[name_partial].fullpar_utilization, SimTest, csfcidx);
+        construct_stageInstanceCombination(0, curInstComb, stgid, curStg, stg2InstCombinations, SimTest.TestsResult[name_bruteForce].fullpar_utilization, SimTest, cSFC );
         if(stg2InstCombinations.find(stgid) == stg2InstCombinations.end()){
-            singleSfcRes.fullpar_pid = noResDueToNoStg;
-            return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
+            return singleSfcRes.fullpar_status = noResDueToNoStg; ///< if there is no instance combinations in current stage then we can't proceed
         }
+        totalInstComb *= stg2InstCombinations[stgid].size();
     }//stgid<szStages finding instances possibilities of each stage.
 
-    if(showInConsoleDetailed){ // showing partParSFC info
-        cout<<"\n fullParSFC:"; for(const auto& blks: fullParSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<") ---------- - --------- - ------";
+    cout<<"\n  BF-fully-parallel["<<SimTest.sfccompleted<<"/"<<SimTest.sortedSFCs.size()<<"]:"<<totalInstComb;
+
+    if(showInConsole >= showDetailed){ // showing partParSFC info
+        cout<<"\n Fully-Parallel-SFC:"; for(const auto& blks: fullParSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; }  
         for(int cur_lvl=0; cur_lvl<szStages; cur_lvl++){  // showing stage wise combination
             cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2InstCombinations[cur_lvl].size()<<") { ";
             for(const auto& instComb: stg2InstCombinations[cur_lvl]){
@@ -408,60 +419,61 @@ int partialChains_FullParallel_Deployment(Simulations& SimTest, const unsigned i
 
     /*! finding all the mapping possibilites for the current partParSFC instance combination at each stage.*/
     unordered_map<unsigned int,unsigned int> curMapping; ///< iterating mapping variable
-    enumerate_InstanceCombination_CalcDelay(0, curMapping,  singleSfcRes.fullpar_fninstmap, singleSfcRes.fullpar_delay, fullParSFC ,stg2InstCombinations, SimTest.TestsResult[name_partial].fullpar_utilization, SimTest, csfcidx, showInConsoleDetailed);//, showInConsoleDetailed
-    singleSfcRes.fullpar_pid = cSFC.allPartParSFC.size()-1;
+    enumerate_InstanceCombination_CalcDelay(0,0, curMapping, singleSfcRes.fullpar_fninstmap, singleSfcRes.fullpar_delay, singleSfcRes.fullpar_load, fullParSFC , stg2InstCombinations, SimTest.TestsResult[name_bruteForce].fullpar_utilization, SimTest, cSFC, showInConsole);//, showInConsoleDetailed
+
     for(const auto& [fn, fninst]: singleSfcRes.fullpar_fninstmap){
-        SimTest.TestsResult[name_partial].fullpar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_bruteForce].fullpar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
     }
-    if(showInConsole){
-        cout<<"\n PartialEnumeration: SFC["<<cSFC.index<<"]   fullpar: idx["<<singleSfcRes.fullpar_pid<<"]  delay:["<<singleSfcRes.fullpar_delay<<"] :";
-        for(const auto &blk: cSFC.allPartParSFC[singleSfcRes.fullpar_pid]) {
-            cout<<"[";  for(const auto& fnid: blk){
-                cout<<fnid<<char(96+singleSfcRes.fullpar_fninstmap.at(fnid))<<" ";
-            }   cout<<"]";
+    if(showInConsole == showFinal){
+        cout<<"\n BruteForce-Instance-Assignment:: Fully-Parallel: SFCid:"<<cSFC.index<<" |  delay:["<<singleSfcRes.fullpar_delay<<"] ("<<singleSfcRes.fullpar_load<<"%) :";
+        for(const auto& blk: cSFC.vnfBlocksPar){
+            cout<<" ["; for(int fnid: blk){
+                cout << "f" << fnid << char(96 + singleSfcRes.fullpar_fninstmap.at(fnid)) << " ";
+            } cout<<"]";
         }
     }
-    return algosuccess;
-}//partialChains_FullParallel_Deployment
+    return singleSfcRes.fullpar_status=algosuccess;
+}//bruteForce_FullParallel_Deployment
 
-/*! For a given SFC and its all partial parallel function, find all the possibile instances (brute force).
+/*! FINDING THE Optimal SFC's VNF Instance Assignment in case IF PARALLELISM Enabled IN SFC.
  * Intance deployment is based on min delay of the path.
  * For a partial parallel chain, find all its instance combinations in each stage, then out of all instance mappings find min delay.
  * @param[in] SimTest Simulation Object which contains SFC on which to perform the test. 
- * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping 
- * @param showInConsole print in the console.
- * @param showInConsoleDetailed print of each step in the console
+ * @param[in] cSFC  given SFC object for which we have to find minimum delay mapping
+ * @param showInConsole output in console (0 don't show, 1 final output, 2 detailed output)
  */
+bool bruteForce_PartParallel_Deployment(Simulations& SimTest, const ServiceFunctionChain& cSFC, const int& showInConsole = dontShow) {//bruteForce_PartParallel_Deployment
+    const vector<vector<vector<unsigned int>>>& allPartParSFC = *cSFC.partialParallelChains;
+    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index];
 
-bool partialChains_PartParallel_Deployment(Simulations& SimTest, const unsigned int& csfcidx, bool showInConsole = false, bool showInConsoleDetailed = false) {//partialChains_PartParallel_Deployment
-    const ServiceFunctionChain& cSFC = SimTest.allSFC[csfcidx];
-    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_partial].sfcsol[cSFC.index];
-    const vector<vector<vector<unsigned int>>>& allPartParSFC = cSFC.allPartParSFC;
-    
     type_delay bst_partpar_delay = std::numeric_limits<type_delay>::max();
     //    vector<vector<unsigned int>> partParSFC = {{1},{6,4},{5}} ;
     for(int ppsidx=int( allPartParSFC.size())-1; ppsidx>=0; --ppsidx){ /*! For each partial parallel SFC without src and dest block/stage.*/
         /*! {{1},{6,4},{5}}; Each Partial SFC is without src and dest block/stage. */
-        cout<<"\r\t\t\t("<<allPartParSFC.size()-ppsidx<<"/"<<allPartParSFC.size()<<")"; //showing progress
+//        cout<<"\r  ppar["<<SimTest.sfccompleted<<"/"<<SimTest.sortedSFCs.size()<<"]("<<allPartParSFC.size()-ppsidx<<"/"<<allPartParSFC.size()<<")";
+//        cout<<"\r\t\t\t("<<allPartParSFC.size()-ppsidx<<"/"<<allPartParSFC.size()<<")"; //showing progress
 
         const vector<vector<unsigned int>>& partParSFC=allPartParSFC.at(ppsidx); ///< for each of the partial parallel SFC of the givenParVNF Blocks
         const unsigned int szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
+        unsigned long long totalInstComb = 1;
         /*! level to Instances Combinations = set of instance combination in block/stage/level index j. {stgid . 2d{ 1d instances combinations{pair<fun, inst>}  }} */
         unordered_map<unsigned int, vector<vector<pair<unsigned int,unsigned int>>> > stg2InstCombinations;
         for(unsigned int stgid=0; stgid<szStages; stgid++){      // finding instances possibilities of each stage.
             const auto& curStg = partParSFC[stgid];
             vector<pair<unsigned int,unsigned int>> curInstComb;
-            construct_stageInstanceCombination(0, curInstComb, stgid, curStg, stg2InstCombinations, SimTest.TestsResult[name_partial].ppar_utilization, SimTest, csfcidx);
+            construct_stageInstanceCombination(0, curInstComb, stgid, curStg, stg2InstCombinations, SimTest.TestsResult[name_bruteForce].ppar_utilization, SimTest, cSFC );
             if(stg2InstCombinations.find(stgid) == stg2InstCombinations.end()){
-                singleSfcRes.ppar_pid = noResDueToNoStg;
-                return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
+                return singleSfcRes.ppar_pid = noResDueToNoStg; ///< if there is no instance combinations in current stage then we can't proceed
             }
+            totalInstComb *= stg2InstCombinations[stgid].size();
         }//stgid<szStages finding instances possibilities of each stage.
         if(stg2InstCombinations.size() != szStages)continue; ///< if number of stages here are not same as sfc then no need to proceed.
 
-        if(showInConsoleDetailed){ // showing partParSFC info
-            cout<<"\n partParSFC["<<ppsidx<<"]: "; for(const auto& blks: partParSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<") ---------- - --------- - ------";
+        cout<<"\r  BF-partial-parallel["<<SimTest.sfccompleted<<"/"<<SimTest.sortedSFCs.size()<<"]("<<allPartParSFC.size()-ppsidx<<"/"<<allPartParSFC.size()<<"):"<<totalInstComb<<"       ";
+
+        if(showInConsole >= showDetailed){ // showing partParSFC info
+            cout<<"\n Partial-Parallel-SFC["<<ppsidx<<"]: "; for(const auto& blks: partParSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<") ---------- - --------- - ------";
             for(int cur_lvl=0; cur_lvl<szStages; cur_lvl++){  // showing stage wise combination
                 cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2InstCombinations[cur_lvl].size()<<") { ";
                 for(const auto& instComb: stg2InstCombinations[cur_lvl]){
@@ -471,8 +483,9 @@ bool partialChains_PartParallel_Deployment(Simulations& SimTest, const unsigned 
         }// show stages wise instances combination
 
         /*! finding all the mapping possibilites for the current partParSFC instance combination at each stage.*/
-        unordered_map<unsigned int,unsigned int> curMapping; ///< iterating mapping variable 
-        enumerate_InstanceCombination_CalcDelay(0, curMapping, singleSfcRes.ppar_fninstmap, bst_partpar_delay, partParSFC, stg2InstCombinations,  SimTest.TestsResult[name_partial].ppar_utilization, SimTest, csfcidx, showInConsoleDetailed);
+        unordered_map<unsigned int,unsigned int> curMapping; ///< iterating mapping variable
+
+        enumerate_InstanceCombination_CalcDelay(0, 0, curMapping, singleSfcRes.ppar_fninstmap, bst_partpar_delay, singleSfcRes.ppar_load, partParSFC, stg2InstCombinations, SimTest.TestsResult[name_bruteForce].ppar_utilization, SimTest, cSFC, showInConsole);
         if(bst_partpar_delay < singleSfcRes.ppar_delay ){
             singleSfcRes.ppar_pid = ppsidx;
             singleSfcRes.ppar_delay = bst_partpar_delay;
@@ -480,15 +493,17 @@ bool partialChains_PartParallel_Deployment(Simulations& SimTest, const unsigned 
 
     }// for each allPartParSFC ppsidx.
  
-    if(singleSfcRes.ppar_pid == noResPar){
-        return algostopped;
-    }
-
+//    if(singleSfcRes.ppar_pid == noResPar){
+//        return algostopped;
+//    }
+    
+    // update
     for(const auto& [fn, fninst]: singleSfcRes.ppar_fninstmap){
-        SimTest.TestsResult[name_partial].ppar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_bruteForce].ppar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
     }
-    if(showInConsole){
-        cout << "\n PartialEnumeration: SFC[" << cSFC.index << "]   Par: idx[" << singleSfcRes.ppar_pid << "]  delay:[" << singleSfcRes.ppar_delay << "] :";
+    
+    if(showInConsole == showFinal){
+        cout << "\n BruteForce-Instance-Assignment:: Partial-Parallel: SFCid:" << cSFC.index <<"  ppId:" << singleSfcRes.ppar_pid << " | delay:[" << singleSfcRes.ppar_delay << "] ("<<singleSfcRes.ppar_load<<"%) :";
         for(const auto &blk: allPartParSFC[singleSfcRes.ppar_pid]) {
             cout<<"[";  for(const auto& fnid: blk){
                 cout << fnid << char(96+singleSfcRes.ppar_fninstmap.at(fnid)) << " ";
@@ -496,7 +511,7 @@ bool partialChains_PartParallel_Deployment(Simulations& SimTest, const unsigned 
         }
     }
     return algosuccess;
-}//partialChains_PartParallel_Deployment
+}//bruteForce_PartParallel_Deployment
 
 
 
@@ -510,18 +525,17 @@ bool partialChains_PartParallel_Deployment(Simulations& SimTest, const unsigned 
  * @param[in,out] lgnids It stores all the stage wise lgNode indexes {stgid . all lgNodes id}
  * @param[in,out] idx2lgNode It stores mapping lgNode index to lgNode structure
  * @param[in] oldUtilization old utilization of the System on that basis we have to calculate the current combination feasibility.
- * @param[in] SimTest Simulation Object which contains SFC on which to perform the test. 
- * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping 
+ * @param[in] SimTest Simulation Object which contains SFC on which to perform the test.
+ * @param[in] cSFC  given SFC object for which we have to find minimum delay mapping
  * For example:  partParSFC = { {1}, {6,4}, {5} }  \n
  * stg 0 (1 function has 3 instances),    3 lgNodes  =  lgNode.instCombination (index,1d[pair<1a>])  lgNode.instCombination (index,[<1b>]) lgNode.instCombination (index,[<1c>])  \n
  * stg 1 (2 par function 2 & 3 instances),6 lgNodes  =  [<6a> <4a>], [<6a> <4b>], [6a 4c], [6b 4a], [6b 4b], [6b 4c]  \n
  * stg 2 (1 function 2 instances),        2 lgNodes  =  [5a] [5b]
 */
-
 void construct_layerGraphNodesIC(unsigned int csfi, const vector<unsigned int>& curStg, vector<pair<unsigned int,unsigned int>>& curInstComb,
                                  vector<unsigned int>& lgnids, unordered_map<unsigned int, lgNode>& idx2lgNode,
                                  const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& oldUtilization,
-                                 const Simulations& SimTest, const unsigned int& csfcidx
+                                 const Simulations& SimTest, const ServiceFunctionChain& cSFC
                                  ){//construct_layerGraphNodesIC
 
     if(csfi == curStg.size()){ // all functions in stage iterated. curStg.size()==numOfFunction in that stage.
@@ -549,13 +563,13 @@ void construct_layerGraphNodesIC(unsigned int csfi, const vector<unsigned int>& 
     const unsigned int& fn = curStg[csfi];
     const unsigned int& totInstancs = SimTest.finalInstancesCount.at(fn);
     for(unsigned int fninst=1; fninst<=totInstancs; fninst++){
-        if (oldUtilization.count(fn) and oldUtilization.at(fn).count(fninst)){ ///< old utilization till now of VNF
-            if(oldUtilization.at(fn).at(fninst) + SimTest.allSFC[csfcidx].trafficArrivalRate >  SimTest.VNFNetwork.VNFNodes.at(fn).serviceRate) {
-                continue; // don't take this instance if its utilisation become more than service rate of function.
+        if (ifRejectSFC and oldUtilization.count(fn) and oldUtilization.at(fn).count(fninst)){ ///< old utilization till now of VNF
+            if(oldUtilization.at(fn).at(fninst) + cSFC.trafficArrivalRate >  SimTest.VNFNetwork.VNFNodes.at(fn).serviceRate) {
+                continue; // don't take this instance if its utilization become more than service rate of function.
             }
         }
         curInstComb.emplace_back(fn, fninst); // push current instance
-        construct_layerGraphNodesIC(csfi+1, curStg, curInstComb, lgnids, idx2lgNode, oldUtilization, SimTest, csfcidx); // call function for next instance
+        construct_layerGraphNodesIC(csfi+1, curStg, curInstComb, lgnids, idx2lgNode, oldUtilization, SimTest, cSFC); // call function for next instance
         curInstComb.pop_back(); // pop last instance and push next instance of same function for another combinations.
     }//recursive case
 }//construct_layerGraphNodesIC
@@ -567,16 +581,16 @@ void construct_layerGraphNodesIC(unsigned int csfi, const vector<unsigned int>& 
  * @param stg2lgnids mapping of stage wise lgNode indexes {stgid . all lgNodes id}
  * @param idx2lgNode mapping lgNode index to lgNode structure
  * @param[in,out] minBstDelay min delay found till now among all partial parallel chains of a given sfc.
+ * @param minBstUtil min utilization of the path chosen with minBstDelay and among all paths with minBstDelay choose minUtil
  * @param[in,out] bstMapping to save best mapping overall among all partial parallel chain/and its all instances.
  * @param[in] SimTest Simulation Object which contains SFC on which to perform the test.
- * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping
- * @param showInConsole print in the console.
- * @param showInConsoleDetailed print of each step in the console
+ * @param[in] cSFC  given SFC object for which we have to find minimum delay mapping
+ * @param showInConsole output in console (0 don't show, 1 final output, 2 detailed output)
+ *
  */
 void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const vector<vector<unsigned int>>& stg2lgnids, unordered_map<unsigned int, lgNode>& idx2lgNode,
-                          type_delay& minBstDelay, unordered_map<unsigned int,unsigned int>& curBstMapping,
-                         const Simulations& SimTest, const unsigned int& csfcidx,
-                          const bool& showInConsole = false, const bool& showInConsoleDetailed = false) {//traverse_layerGraph
+                          type_delay& minBstDelay, type_delay& minBstUtil, unordered_map<unsigned int,unsigned int>& curBstMapping,
+                         const Simulations& SimTest, const ServiceFunctionChain& cSFC, const int& showInConsole = dontShow) {//traverse_layerGraph
 
     const unsigned int& szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
     vector<unordered_set<unsigned int>> uniqLgidInStgOfKPaths(szStages); ///< unique lgNode ids in each stage which is used in k shortest path. So that we don't have to iterate all lgNode in stages again and itearte only which is necessary.
@@ -586,8 +600,8 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
 /* ************* function to find min pair path ************************************************************ */
     std::function<unsigned int(unsigned int)> findPathsToConsider = [&](unsigned int pqsize)->unsigned int{
         if(pqsize <= 2) return pqsize; ///< if less than two then take both
-        else if(pqsize <= 6) return 4; // if 2-4 paths then take 3
-        else return mxPathsK;
+        else if(pqsize <= 6) return 4; // if 3-6 paths then take 4
+        else return mxPathsK; // from 7 to ---
 //        return pqsize;
     };
     /*! to process the min heap. select min time and min utilization paths of all the paths present in min heap.
@@ -597,8 +611,8 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
      * @param pq priority queue structure consist of all the paths of processed previous-current stage.
      * @param lastStage if we are processing last stage, then we just need one path and assign it to SFC.
      */
-    std::function<int(const unsigned int, priority_queue<pqNode>&, unsigned int)> processs_min_heap = [&idx2lgNode, &uniqLgidInStgOfKPaths, &minBstDelay, &showInConsole](const unsigned int& id_curstg, priority_queue<pqNode>&pq, unsigned int numOfPathsToConsider)->int{
-        if(showInConsole){ cout<<"\n TotalPathPairs:"<<pq.size();}
+    std::function<int(const unsigned int, priority_queue<pqNode>&, unsigned int)>   processs_min_heap = [&idx2lgNode, &uniqLgidInStgOfKPaths, &minBstDelay, &showInConsole](const unsigned int& id_curstg, priority_queue<pqNode>&pq, unsigned int numOfPathsToConsider)->int{
+        if(showInConsole == showFinal){ cout<<"\n TotalPathPairs:"<<pq.size();}
         int numOfPathsInserted = 0;
         type_delay prv_mindist_taken = 0;
         while(numOfPathsToConsider>0 and !pq.empty()){
@@ -609,12 +623,14 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
             if(min_path.mindist > minBstDelay) {
                 return numOfPathsInserted;
             }
+
             // min 3 path insert kar diye and hamare pass abhi kuch paths consider krne ko hai and pq me aur bhi paths hai, par abhi wale ka dist same hai prv wale se
              if(numOfPathsInserted>2 and (pq.size() > numOfPathsToConsider) and  fabs(prv_mindist_taken - min_path.mindist)<1){
                  pq.pop(); // is path ko consider hi nhi kar rha, aage ke 2 path ko consider kr rha
                  continue;
              }
             prv_mindist_taken = min_path.mindist;
+
 
             numOfPathsInserted++;
             min_path.path.push_back(min_path.y); ///< create path by inserting new destination for which it is minimum.
@@ -625,7 +641,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
             uniqLgidInStgOfKPaths[id_curstg].insert(min_path.y); ///< if(!lastStage) last stage don't require insert but doesn't create a difference
 
             pq.pop(); numOfPathsToConsider--;
-            if(showInConsole){ cout<<"\n     p:"<<min_path.mindist<<"sec | "<<min_path.utilization<<"% ["; for(const auto& kkk: min_path.path)  cout<<kkk<<" -> ";}
+            if(showInConsole == showFinal){ cout<<"\n     p:"<<min_path.mindist<<"sec | "<<min_path.utilization<<"% ["; for(const auto& kkk: min_path.path)  cout<<kkk<<" -> ";}
         }
         return numOfPathsInserted;
     };
@@ -642,7 +658,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
 
         for (const unsigned int &lgnIdy: stg2lgnids[id_curstg]) {
             const lgNode &lgy = idx2lgNode[lgnIdy]; ///< layer graph node y, x is dummy source
-            if (showInConsoleDetailed) { cout << "\n lg:" << lgy.idx << " ["; for (const auto &givenPair: lgy.instCombination) { cout << givenPair.first << char(givenPair.second - 1 + 'a') << " "; } cout << "]";}
+            if (showInConsole >= showDetailed) { cout << "\n lg:" << lgy.idx << " ["; for (const auto &givenPair: lgy.instCombination) { cout << givenPair.first << char(givenPair.second - 1 + 'a') << " "; } cout << "]";}
 
             type_delay mx_delay_x_y = 0;///< maximum delay of the current lgNode pair (x=dummySrc,y=current lgNode).
             /*! Calculation of packet processing time. inter duplication from src to different servers, intra duplication (within same server multiple nodes) and intra merging*/
@@ -664,7 +680,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
                     T_d_hdr = calcD_IntraDuplicationTime(needIntraHdrCopy, needIntraPktCopy);
                     T_m_hdr = calcD_IntraMergingTime(needIntraHdrCopy, needIntraPktCopy);
                 }
-                const unsigned int pn_x = SimTest.allSFC[csfcidx].access_nodes.first; /// sfc source physical node (only one node at previous stage)
+                const unsigned int pn_x = cSFC.access_nodes.first; /// sfc source physical node (only one node at previous stage)
                 unsigned int px_py_same = 0;
                 if (lgy.cntPN.find(pn_x) != lgy.cntPN.end()) px_py_same = 1;
                 unsigned int cntNextHopDiffServer = lgy.cntPN.size() - px_py_same;
@@ -676,7 +692,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
                 mx_delay_x_y = max(mx_delay_x_y, (T_d_pkt + T_tx + T_px)+(T_d_hdr + T_m_hdr) + lgy.exePN.at(pn_y));
             }//curStgPN
 
-            if (showInConsoleDetailed) { cout << "\n      max:" << mx_delay_x_y; }
+            if (showInConsole >= showDetailed) { cout << "\n      max:" << mx_delay_x_y; }
             pqs.emplace(idx2lgNode[0].idx, lgy.idx, mx_delay_x_y, lgy.utilization, vector<unsigned int>{idx2lgNode[0].idx}); /// constructing the dummy src to lgy path.
         }
 
@@ -698,12 +714,12 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
         /*  lgnIdy ********************************* */
         for (const unsigned int &lgnIdy: stg2lgnids[id_curstg]) { /*!< Iterating all the layer graph node index in current stage(destination)  */
             const lgNode& lgy = idx2lgNode[lgnIdy]; ///< current layer Layer Graph Node
-            if (showInConsoleDetailed) { cout << "\n lgy:" << lgy.idx ; cout<<" ["; for(const auto& givenPair: lgy.instCombination){ cout<<givenPair.first<<char(givenPair.second-1+'a')<<" ";  }  cout<<"]";}
+            if (showInConsole >= showDetailed) { cout << "\n lgy:" << lgy.idx ; cout<<" ["; for(const auto& givenPair: lgy.instCombination){ cout<<givenPair.first<<char(givenPair.second-1+'a')<<" ";  }  cout<<"]";}
 
             /*  lgnIdx*********************************** */
             for (const unsigned int &lgnIdx: uniqLgidInStgOfKPaths[id_prvstg]) {/*!< Iterating layer graph nodes index (which are in Path) in previous stage(source)  */
                 const lgNode &lgx = idx2lgNode[lgnIdx];///< current layer Layer Graph Node
-                if (showInConsoleDetailed) { cout << "\n   lgx:" << lgx.idx; cout << " ["; for (const auto &givenPair: lgx.instCombination) {  cout << givenPair.first << char(givenPair.second - 1 + 'a') << " "; } cout << "]";}
+                if (showInConsole >= showDetailed) { cout << "\n   lgx:" << lgx.idx; cout << " ["; for (const auto &givenPair: lgx.instCombination) {  cout << givenPair.first << char(givenPair.second - 1 + 'a') << " "; } cout << "]";}
 
                 /* *************************************** */
                 /*! Once x = lgx, y = lgy are fixed. We will find maximum time for each physical server in y to determine edge (x,y). */
@@ -735,7 +751,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
 
                     type_delay mx_pktPrc =  T_m_pkt  + T_d_hdr + T_m_hdr;///< overall total time spent in packet processing from src to dest.
 
-                    if(showInConsoleDetailed) {
+                    if(showInConsole >= showDetailed) {
                         cout<<"\n      :"<<pn_y_parallel_vnfs.size()<<"[py:"<<pn_y<<"]"<<"  prvD:"<<cntPrevHopDiffServer<<" s("<<py_px_same<<")"
                             <<"   [m_pkt:"<<T_m_pkt<<" d_hdr:"<<T_d_hdr<<" m_hdr:"<<T_m_hdr<<"]"<<"   mxServer:"<<lgy.exePN.at(pn_y);
                     }
@@ -751,14 +767,14 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
                             T_tx = T_tx_init; T_px =  calcD_PropagationDelay(pn_x, pn_y,SimTest.PhysicalNetwork);
                         }
                         mx_interdupTxPx_for_y = max(mx_interdupTxPx_for_y, T_d_pkt + T_tx + T_px);///< overall total time spent in sending packet from src to dest.
-                        if (showInConsoleDetailed) {
+                        if (showInConsole >= showDetailed) {
                             cout << "\n           " << pn_x_parallel_vnfs.size() << "(px:" << pn_x << ")  " << "nxtD:" << cntNextHopDiffServer << " s(" << px_py_same << ")"
                                  << "   [d_pkt:" << T_d_pkt << " tx:" << T_tx << " px:" << T_px << "]";
                         }
                     }//lgx prvStgPN
                     mx_delay_x_y = max(mx_delay_x_y, mx_interdupTxPx_for_y + mx_pktPrc + lgy.exePN.at(pn_y));
 
-                    if(showInConsoleDetailed) {
+                    if(showInConsole >= showDetailed) {
                         cout<<"   mxTxPx:"<<mx_interdupTxPx_for_y;
                         cout<<"\n        px-py:"<< mx_interdupTxPx_for_y + mx_pktPrc + lgy.exePN.at(pn_y);
                     }
@@ -779,10 +795,10 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
     { //From last Stage to destination of sfc
         id_curstg = szStages - 1;
         priority_queue<pqNode> pqd; ///< to find minimum delay path in the x-y pairs of last stage and dummy dst stage.
-        const unsigned int& pn_y = SimTest.allSFC[csfcidx].access_nodes.second; /// sfc destination physical node (only one node at last stage)
+        const unsigned int& pn_y = cSFC.access_nodes.second; /// sfc destination physical node (only one node at last stage)
         for (const unsigned int &lgnIdx: uniqLgidInStgOfKPaths[id_curstg]) { //lgx
             const lgNode &lgx = idx2lgNode[lgnIdx];
-            if (showInConsoleDetailed) {
+            if (showInConsole >= showDetailed) {
                 cout << "\n lg:" << lgx.idx << " ["; for (const auto &givenPair: lgx.instCombination) {  cout << givenPair.first << char(givenPair.second - 1 + 'a') << " ";  } cout << "]";
             }
             type_delay mx_interdupTxPx_for_y = 0;
@@ -793,7 +809,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
                     T_tx = T_tx_init; T_px =  calcD_PropagationDelay(pn_x, pn_y,SimTest.PhysicalNetwork);
                 }
                 mx_interdupTxPx_for_y = max(mx_interdupTxPx_for_y, T_tx + T_px);///< overall total time spent in sending packet from src to dest.
-                if (showInConsoleDetailed) {
+                if (showInConsole >= showDetailed) {
                     cout << "\n           " << pn_x_parallel_vnfs.size() << "(px:" << pn_x << ")  "<< "   [tx:" << T_tx << " px:" << T_px << "]";
                 }
             }//lgx prvStgPN
@@ -814,8 +830,9 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
 
     if(idx2lgNode[lgDSTid].kpaths[0].mindist < minBstDelay){ ///< 0th index is shortest one
         minBstDelay =  idx2lgNode[lgDSTid].kpaths[0].mindist;
+        minBstUtil = idx2lgNode[lgDSTid].kpaths[0].utilization;
         for(const auto lgid: idx2lgNode[lgDSTid].kpaths[0].path){
-            if(idx2lgNode[lgid].instCombination.empty())continue;
+//            if(idx2lgNode[lgid].instCombination.empty())continue;
             for(const auto &[fn, fninst]: idx2lgNode[lgid].instCombination){
                 curBstMapping[fn]=fninst;
             }
@@ -823,7 +840,7 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
     }
     else return;
 
-    if(showInConsoleDetailed){
+    if(showInConsole >= showDetailed){
         cout << "\n-- Layer Graph Nodes ::";
         cout<<"\nId\t"<<"kp\t"<<"Utlz\t\t"<<"maxExePN\t"<<"child";
         cout<<"\n-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----\t"<<"-----";
@@ -834,31 +851,26 @@ void traverse_layerGraph(const vector<vector<unsigned int>>& partParSFC,  const 
         }
     }///show lgNodes
 
-    if(showInConsole){ /// showing instance and its delay
+    if(showInConsole == showFinal){ /// showing instance and its delay
         cout<<"    "<<"["; for(const auto &blk: partParSFC){ for(const auto& fnid: blk){ cout<<fnid<<char(96+curBstMapping.at(fnid))<<" ";  }  } cout<<"]";
-        cout<<"["<<minBstDelay<<"sec]";
+        cout<<"["<<minBstDelay<<"] ("<<minBstUtil<<"%)";
     }
 
 }//traverse_layerGraph
 
-/*! FINDING THE VNF DEPLOYMENT by Layer Graph Construction IF PARALLELISM is DISABLED IN SFC\n
- * For a given partial sfc which is same as sequential sfc, construct the layer graph and find the final instance mapping/deployment based on previous utilization.\n
- * Intance mapping is based on min delay of the path with min utilization (lightly loaded).\n
- * For a partial parallel chain, and its instances combination in stages, it enumerates only k shortest paths in each stage from previous to current stage.
+/*! FINDING THE SFC's VNF Instance Assignment IF PARALLELISM is DISABLED IN SFC\n
+ * For a given sequential sfc, construct the layer graph and find the final instance mapping/deployment based on previous utilization.\n
+ * Intance mapping is based on min delay of the path with min utilization (lightly loaded).
  * @param[in] SimTest Simulation Object which contains SFC on which to perform the test.
- * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping
- * @param[in] seqSFC sequential chain, this partial chain is same as given sfc.
- * @param[in] showInConsole print in the console.
- * @param[in] showInConsoleDetailed print of each step in the console
+ * @param[in] cSFC  given SFC object for which we have to find minimum delay mapping
+ * @param showInConsole output in console (0 don't show, 1 final output, 2 detailed output)
  * @return status of the algorithm.
  */
-bool layerGraph_Sequential_Deployement(Simulations& SimTest, const unsigned int& csfcidx,
-                                       const vector<vector<unsigned int>>& seqSFC,
-                                       const bool& showInConsole = false, const bool& showInConsoleDetailed = false) {
+bool kShortestPath_Sequential_Deployement(Simulations& SimTest, const ServiceFunctionChain& cSFC, const int& showInConsole = dontShow) {//kShortestPath_Sequential_Deployement
 
-    const ServiceFunctionChain& cSFC = SimTest.allSFC[csfcidx];
-    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_layerg].sfcsol[cSFC.index];
-    const unsigned int Len = seqSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
+    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index];
+    const vector<vector<unsigned int>>& seqSFC = (*cSFC.partialParallelChains).front();
+    const unsigned int& Len = seqSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
     vector<vector<unsigned int>> stg2lgnids(Len); ///< stage wise lgNode indexes in order to process/traverse it.
     unordered_map<unsigned int, lgNode> idx2lgNode;///< given index it is mapped to actual layer graph node structer so that we can process it uniquely.
@@ -867,18 +879,17 @@ bool layerGraph_Sequential_Deployement(Simulations& SimTest, const unsigned int&
     for(unsigned int stgid=0; stgid<Len; stgid++){      // finding instances possibilities of each stage and constructing lgNodes.
         const auto& curStg = seqSFC[stgid];
         vector<pair<unsigned int,unsigned int>> curInstComb;
-        construct_layerGraphNodesIC(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, SimTest.TestsResult[name_layerg].seq_utilization, SimTest, csfcidx);
+        construct_layerGraphNodesIC(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, SimTest.TestsResult[name_kshortestpath].seq_utilization, SimTest, cSFC );
         if(stg2lgnids[stgid].empty()){
-            singleSfcRes.seq_pid = noResDueToNoStg;
-            return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
+            return singleSfcRes.seq_status = noResDueToNoStg; ///< if there is no instance combinations in current stage then we can't proceed
         }
     }//stgid<szStages finding instances possibilities of each stage.
 
     unsigned int lgDSTid = idx2lgNode.size(); ///< destination lgNode
     idx2lgNode[lgDSTid] = lgNode(lgDSTid);
 
-    if(showInConsole){ // showing partParSFC info
-        cout<<"\nseqSFC: ";
+    if(showInConsole >= showDetailed){ // showing partParSFC info
+        cout<<"\nSequential-SFC: ";
         for(const auto& blks: seqSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<")";
         for(int cur_lvl=0; cur_lvl<Len; cur_lvl++){  // showing stage wise combination
             cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2lgnids[cur_lvl].size()<<"):";
@@ -888,43 +899,36 @@ bool layerGraph_Sequential_Deployement(Simulations& SimTest, const unsigned int&
         }
     }
 
-    traverse_layerGraph(seqSFC, stg2lgnids, idx2lgNode, singleSfcRes.seq_delay, singleSfcRes.seq_fninstmap, SimTest, csfcidx, showInConsole, showInConsoleDetailed);
-    singleSfcRes.seq_pid = 0;
-
+    traverse_layerGraph(seqSFC, stg2lgnids, idx2lgNode, singleSfcRes.seq_delay, singleSfcRes.seq_load,singleSfcRes.seq_fninstmap, SimTest, cSFC);
+  
     /// if we found the mapping for sequential chain
     for(const auto& [fn, fninst]: singleSfcRes.seq_fninstmap){
-        SimTest.TestsResult[name_layerg].seq_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_kshortestpath].seq_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+//        cout<<"{"<<fn<<","<<fninst<<"},";
     }
 
-    if(showInConsole) {
-        cout << "\n LayerGraph: SFC[" << cSFC.index << "]"<<"\t Seq. idx["<<singleSfcRes.seq_pid<<"]  delay:["<<singleSfcRes.seq_delay<<"]:";
-        for(const auto &blk: cSFC.allPartParSFC[singleSfcRes.seq_pid]) {
-            cout<<"[";  for(const auto& fnid: blk){
-                cout<<fnid<<char(96+singleSfcRes.seq_fninstmap.at(fnid))<<" ";
-            }   cout<<"]";
-        }
+    if(showInConsole >= showFinal) {
+        cout << "\n kShortestPath-Instance-Assignment:: Sequential: SFCid:" << cSFC.index << " | delay:["<<singleSfcRes.seq_delay<<"] ("<<singleSfcRes.seq_load<<"%) :(";
+        for(const auto& fnid : cSFC.vnfSeq){
+            cout<<"f"<<fnid<<char(96+singleSfcRes.seq_fninstmap.at(fnid))<<"; ";
+        } cout<<")";
     }
-    return algosuccess;
-}
+    return singleSfcRes.seq_status = algosuccess;
+}//kShortestPath_Sequential_Deployement
 
 
-/*! FINDING THE VNF DEPLOYMENT by Layer Graph Construction IF Full PARALLELISM Enabled IN SFC\n
+/*! FINDING THE SFC's VNF Instance Assignment IF Full PARALLELISM Enabled IN SFC \n
  * For a given partial sfc and its full parallel vnf, construct the layer graph and find the final instance mapping/deployment based on previous utilization.\n
- * Intance mapping is based on min delay of the path with min utilization (lightly loaded).\n
- * For a partial parallel chain, and its instances combination in stages, it enumerates only k shortest paths in each stage from previous to current stage.
+ * Intance mapping is based on min delay of the path with min utilization (lightly loaded).\n 
  * @param[in] SimTest Simulation Object which contains SFC on which to perform the test.
- * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping
- * @param[in] fullSFC parallel version of given sequential chain
- * @param[in] showInConsole print in the console.
- * @param[in] showInConsoleDetailed print of each step in the console
+ * @param[in] cSFC  given SFC object for which we have to find minimum delay mapping
+ * @param[in] showInConsole output in console (0 don't show, 1 final output, 2 detailed output) 
  * @return status of the algorithm.
  */
-bool layerGraph_FullParallel_Deployment(Simulations& SimTest, const unsigned int& csfcidx,
-                                        const vector<vector<unsigned int>>& fullSFC,
-                                        const bool& showInConsole = false, const bool& showInConsoleDetailed = false) {
-
-    const ServiceFunctionChain& cSFC = SimTest.allSFC[csfcidx];
-    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_layerg].sfcsol[cSFC.index];
+bool kShortestPath_FullParallel_Deployment(Simulations& SimTest, const ServiceFunctionChain& cSFC,
+                                            const int& showInConsole = dontShow) {//kShortestPath_FullParallel_Deployment
+    const vector<vector<unsigned int>>& fullSFC = cSFC.vnfBlocksPar;
+    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index];
 
     const unsigned int Len = fullSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
@@ -932,21 +936,26 @@ bool layerGraph_FullParallel_Deployment(Simulations& SimTest, const unsigned int
     unordered_map<unsigned int, lgNode> idx2lgNode;///< given index it is mapped to actual layer graph node structer so that we can process it uniquely.
     idx2lgNode[0] = lgNode(0); ///< source lgNode.
 
+    unsigned long long totalInstComb = 0;
     for(unsigned int stgid=0; stgid<Len; stgid++){      // finding instances possibilities of each stage and constructing lgNodes.
         const auto& curStg = fullSFC[stgid];
         vector<pair<unsigned int,unsigned int>> curInstComb;
-        construct_layerGraphNodesIC(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, SimTest.TestsResult[name_layerg].fullpar_utilization, SimTest, csfcidx);
+        construct_layerGraphNodesIC(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, SimTest.TestsResult[name_kshortestpath].fullpar_utilization, SimTest, cSFC );
         if(stg2lgnids[stgid].empty()){
-            singleSfcRes.fullpar_pid = noResDueToNoStg;
-            return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
+            return singleSfcRes.fullpar_status = noResDueToNoStg; ///< if there is no instance combinations in current stage then we can't proceed
         }
+        if(stgid != 0){
+            totalInstComb += min(stg2lgnids[stgid-1].size(), 5ULL)*stg2lgnids[stgid].size();
+        }else totalInstComb = stg2lgnids[stgid].size();
     }//stgid<szStages finding instances possibilities of each stage.
+
+    cout<<"\n  H-fully-parallel["<<SimTest.sfccompleted<<"/"<<SimTest.sortedSFCs.size()<<"]:"<<totalInstComb;
 
     unsigned int lgDSTid = idx2lgNode.size(); ///< destination lgNode
     idx2lgNode[lgDSTid] = lgNode(lgDSTid);
 
-    if(showInConsoleDetailed){ // showing partParSFC info
-        cout<<"\nfullSFC: ";
+    if(showInConsole == showDetailed){ // showing partParSFC info
+        cout<<"\nFully-Parallel-SFC: ";
         for(const auto& blks: fullSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<")";
         for(int cur_lvl=0; cur_lvl<Len; cur_lvl++){  // showing stage wise combination
             cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2lgnids[cur_lvl].size()<<"):";
@@ -956,46 +965,45 @@ bool layerGraph_FullParallel_Deployment(Simulations& SimTest, const unsigned int
         }
     }
 
-    traverse_layerGraph(fullSFC, stg2lgnids, idx2lgNode, singleSfcRes.fullpar_delay, singleSfcRes.fullpar_fninstmap, SimTest, csfcidx, showInConsole, showInConsoleDetailed);
-    singleSfcRes.fullpar_pid = cSFC.allPartParSFC.size()-1;
+    traverse_layerGraph(fullSFC, stg2lgnids, idx2lgNode, singleSfcRes.fullpar_delay, singleSfcRes.fullpar_load, singleSfcRes.fullpar_fninstmap, SimTest, cSFC);
+ 
 
     /// if we found the mapping for sequential chain
     for(const auto& [fn, fninst]: singleSfcRes.fullpar_fninstmap){
-        SimTest.TestsResult[name_layerg].fullpar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_kshortestpath].fullpar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
     }
 
-    if(showInConsole) {
-        cout << "\n LayerGraph: SFC[" << cSFC.index << "]"<<"\t fullpar idx["<<singleSfcRes.fullpar_pid<<"]  delay:["<<singleSfcRes.fullpar_delay<<"]:";
-        for(const auto &blk: cSFC.allPartParSFC[singleSfcRes.fullpar_pid]) {
-            cout<<"[";  for(const auto& fnid: blk){
-                cout<<fnid<<char(96+singleSfcRes.fullpar_fninstmap.at(fnid))<<" ";
-            }   cout<<"]";
+    if(showInConsole == showFinal) {
+        cout << "\n kShortestPath-Instance-Assignment: Fully-Parallel: SFCid:" << cSFC.index << " |  delay:["<<singleSfcRes.fullpar_delay<<"] ("<<singleSfcRes.fullpar_load<<"%) :";
+        for(const auto& blk: cSFC.vnfBlocksPar){
+            cout<<" ["; for(int fnid: blk){
+                cout << "f" << fnid << char(96 + singleSfcRes.fullpar_fninstmap.at(fnid)) << " ";
+            } cout<<"]";
         }
     }
-    return algosuccess;
-}
+    return singleSfcRes.fullpar_status = algosuccess;
+}//kShortestPath_FullParallel_Deployment
 
-/*! FINDING THE VNF DEPLOYMENT by Layer Graph Construction IF PARALLELISM ENABLED IN SFC.\n
+/*! FINDING THE Optimal SFC's VNF Instance Assignment in case IF PARALLELISM Enabled IN SFC.\n
  * For a given SFC and its all partial parallel chains, construct the layer graph and find the final instance mapping/deployment based on previous utilization.\n
  * Intance mapping is based on min delay of the path with min utilization (lightly loaded).\n
  * For a partial parallel chain, and its instances combination in stages, it enumerates only k shortest paths in each stage from previous to current stage. 
  * @param[in] SimTest Simulation Object which contains SFC on which to perform the test. 
- * @param[in] csfcidx  given SFC index for which we have to find minimum delay mapping 
- * @param[in] showInConsole print in the console.
- * @param[in] showInConsoleDetailed print of each step in the console
+ * @param[in] cSFC  given SFC object for which we have to find minimum delay mapping
+ * @param[in] showInConsole output in console (0 don't show, 1 final output, 2 detailed output)
  * @return status of the algorithm.
  */
-bool layerGraph_PartParallel_Deployement(Simulations& SimTest, const unsigned int& csfcidx, 
-                                        const bool& showInConsole = false, const bool& showInConsoleDetailed = false) {//layerGraph_PartParallel_Deployement
+bool kShortestPath_PartParallel_Deployement(Simulations& SimTest, const ServiceFunctionChain& cSFC,
+                                            const int& showInConsole = dontShow) {//kShortestPath_PartParallel_Deployement
 
-    const ServiceFunctionChain& cSFC = SimTest.allSFC[csfcidx];
-    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_layerg].sfcsol[cSFC.index]; 
-    const vector<vector<vector<unsigned int>>>& allPartParSFC = cSFC.allPartParSFC;
+    SFC_RESULT& singleSfcRes = SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index];
+    const vector<vector<vector<unsigned int>>>& allPartParSFC = *cSFC.partialParallelChains;
     
     type_delay bst_partpar_delay = std::numeric_limits<type_delay>::max();
     //    vector<vector<unsigned int>> partParSFC = {{1},{6,4},{5}}; ///Testing purpose
     for(int ppsidx=int( allPartParSFC.size())-1; ppsidx>=0; --ppsidx){/*! For each partial parallel SFC without src and dest block/stage.*/
-        cout<<"\r\t\t\t("<<allPartParSFC.size()-ppsidx<<"/"<<allPartParSFC.size()<<")"; //showing progress
+
+//      cout<<"\r\t\t\t("<<allPartParSFC.size()-ppsidx<<"/"<<allPartParSFC.size()<<")"; //showing progress
         const vector<vector<unsigned int>>& partParSFC=allPartParSFC[ppsidx]; ///< for each of the partial parallel SFC of the givenParVNF Blocks
         const unsigned int szStages = partParSFC.size(); ///< number of block/stage/level of the partParSFC without src and dst block/stage.
 
@@ -1003,24 +1011,30 @@ bool layerGraph_PartParallel_Deployement(Simulations& SimTest, const unsigned in
         unordered_map<unsigned int, lgNode> idx2lgNode;///< given index it is mapped to actual layer graph node structer so that we can process it uniquely.
         idx2lgNode[0] = lgNode(0); ///< source lgNode.
 
+        unsigned long long totalInstComb = 0;
 //        unsigned int mxNumOflgNodesInStg = 0; // maximum number of lgNodes present in any stage;
         for(unsigned int stgid=0; stgid<szStages; stgid++){      // finding instances possibilities of each stage and constructing lgNodes.
             const auto& curStg = partParSFC[stgid];
             vector<pair<unsigned int,unsigned int>> curInstComb;
-            construct_layerGraphNodesIC(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, SimTest.TestsResult[name_layerg].ppar_utilization, SimTest, csfcidx);
+            construct_layerGraphNodesIC(0, curStg, curInstComb, stg2lgnids[stgid], idx2lgNode, SimTest.TestsResult[name_kshortestpath].ppar_utilization, SimTest, cSFC );
 //            mxNumOflgNodesInStg=max(mxNumOflgNodesInStg, (unsigned int)(stg2lgnids[stgid].size()));
+
             if(stg2lgnids[stgid].empty()){
-                singleSfcRes.ppar_pid = noResDueToNoStg;
-                return algostopped; ///< if there is no instance combinations in current stage then we can't proceed
+                return singleSfcRes.ppar_pid = noResDueToNoStg; ///< if there is no instance combinations in current stage then we can't proceed
             }
+            if(stgid != 0){
+                totalInstComb += min(stg2lgnids[stgid-1].size(), 5ULL)*stg2lgnids[stgid].size();
+            } else totalInstComb = stg2lgnids[stgid].size();
         }//stgid<szStages finding instances possibilities of each stage.
         if(stg2lgnids.size() != szStages)continue; ///< if number of stages here are not same as sfc then no need to proceed.
+
+        cout<<"\r  H-partial-parallel["<<SimTest.sfccompleted<<"/"<<SimTest.sortedSFCs.size()<<"]("<<allPartParSFC.size()-ppsidx<<"/"<<allPartParSFC.size()<<"):"<<totalInstComb<<"       ";
 
         unsigned int lgDSTid = idx2lgNode.size(); ///< destination lgNode
         idx2lgNode[lgDSTid] = lgNode(lgDSTid);
 
-        if(showInConsoleDetailed){ // showing partParSFC info
-            cout<<"\npartParSFC["<<ppsidx<<"]: ";
+        if(showInConsole >= showDetailed){ // showing partParSFC info
+            cout<<"\nPartial-Parallel-SFC["<<ppsidx<<"]: ";
                 for(const auto& blks: partParSFC){ cout<<"["; for(auto fn_id: blks){  cout<<"f"<<fn_id<<" ";  } cout<<"]"; } cout<<")";
                 for(int cur_lvl=0; cur_lvl<szStages; cur_lvl++){  // showing stage wise combination
                     cout<<"\n\tSTG["<<cur_lvl<<"]("<<stg2lgnids[cur_lvl].size()<<"):";
@@ -1030,23 +1044,22 @@ bool layerGraph_PartParallel_Deployement(Simulations& SimTest, const unsigned in
                 }
         }
 
-        traverse_layerGraph(partParSFC, stg2lgnids, idx2lgNode, bst_partpar_delay, singleSfcRes.ppar_fninstmap, SimTest, csfcidx, showInConsole, showInConsoleDetailed);
+        traverse_layerGraph(partParSFC, stg2lgnids, idx2lgNode, bst_partpar_delay, singleSfcRes.ppar_load, singleSfcRes.ppar_fninstmap, SimTest, cSFC, showInConsole);
         if(bst_partpar_delay < singleSfcRes.ppar_delay ){
             singleSfcRes.ppar_pid = ppsidx;
             singleSfcRes.ppar_delay = bst_partpar_delay;
         }
     }//for each allPartParSFC ppsidx.
-    if(singleSfcRes.ppar_pid == noResPar){
-        return algostopped;
-    }
-
+//    if(singleSfcRes.ppar_pid == noResPar){
+//        return algostopped;
+//    }
     /// if we found the mapping for parallel chain
     for(const auto& [fn, fninst]: singleSfcRes.ppar_fninstmap){
-        SimTest.TestsResult[name_layerg].ppar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_kshortestpath].ppar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
     }
 
-    if(showInConsole) {
-        cout << "\n [LayerGraph]  SFC[" << cSFC.index << "]" << "\t PPar: idx[" << singleSfcRes.ppar_pid << "] delay:[" << singleSfcRes.ppar_delay << "] :";
+    if(showInConsole == showFinal) {
+        cout << "\n kShortestPath-Instance-Assignment:: Partial-Parallel: SFCid:" << cSFC.index << "  ppId:" << singleSfcRes.ppar_pid << " | delay:[" << singleSfcRes.ppar_delay << "] ("<<singleSfcRes.ppar_load<<"%) :";
         for(const auto &blk: allPartParSFC[singleSfcRes.ppar_pid]) {
             cout<<"[";  for(const auto& fnid: blk){
                 cout << fnid << char(96+singleSfcRes.ppar_fninstmap.at(fnid)) << " ";
@@ -1055,58 +1068,47 @@ bool layerGraph_PartParallel_Deployement(Simulations& SimTest, const unsigned in
     }
 
     return algosuccess;
-}//layerGraph_PartParallel_Deployement
+}//kShortestPath_PartParallel_Deployement
 
 /* **************************************************************************************************************** */
-/*! For a given SFC and its all partial parallel chains, construct the layer graph and find the final instance mapping/deployment based on previous utilization.\n
- * Intance mapping is based on min delay of the path with min utilization (lightly loaded).\n
- * For a partial parallel chain, and its instances combination in stages, it enumerates only k shortest paths in each stage from previous to current stage.
- * partial chain with index 0 is same as sequential sfc. Therefore find deployment in case of no parallelism also.
- * @param[in,out] SimTest Simulation Object which contains SFC on which to perform the test.
- * @param[in] showInConsole print in the console.
- * @param[in] showInConsoleDetailed print of each step in the console
- * @return status of the algorithm.
+/*! Find SFC's VNF deployment for sequential sfc only, for fully parallel sfc only, for partial-parallel sfc only.
+ * @param SimTest Simulation Object which contains SFC on which to perform the test.
  */
+void Heuristic_kShortestPath_InstanceMapping(Simulations& SimTest) {//Heuristic_kShortestPath_InstanceMapping
 
-void algo_LayerGraph_InstanceMapping(Simulations& SimTest, const bool& showInConsole = false, const bool& showInConsoleDetailed = false) {//algo_LayerGraph_InstanceMapping
-
-    SimTEST simtest_layerg(name_layerg);
-    SimTest.TestsResult[name_layerg] = std::move(simtest_layerg);
-
-    int sfccompleted=1, sfctotal = SimTest.allSFC.size(); cout<<"\n [Layer Graph]\n";
+    SimTest.TestsResult[name_kshortestpath] =  SimTEST(name_kshortestpath); ///< simulation test object
+    cout<<"\n ["<<name_kshortestpath<<"]\n";
     
-    auto deploy_st = std::chrono::steady_clock::now();
+// SEQ ----------------------------------------------------------
+    SimTest.sfccompleted=0;
     for(const ServiceFunctionChain*const& sfcpointer:SimTest.sortedSFCs) {
         const ServiceFunctionChain& cSFC = *sfcpointer;
-        cout<<"\r  seq["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
-//        cout<<"\n------------------------------------------------------";
-//        cout<<"\n[LayerG] Seq | sfc:"<<cSFC.index<<" :  lambda: "<<cSFC.trafficArrivalRate<<" :  vnfs: "<<cSFC.numVNF;
+        SimTest.sfccompleted++;
+        cout<<"\r  H-sequential["<<SimTest.sfccompleted<<"/"<<SimTest.sortedSFCs.size()<<"]";
 
-        SFC_RESULT singleSfcRes; ///< solution for the layer graph algorithm
-        SimTest.TestsResult[name_layerg].sfcsol[cSFC.index] = std::move(singleSfcRes); // save result.
+        SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index] = SFC_RESULT(); ///< solution for the layer graph algorithm
         auto sfc_st = std::chrono::steady_clock::now();
         for(const unsigned int& fn: cSFC.vnfSeq){ /// finding some vnf delays
             const VNFNode& dstVNFNode = SimTest.VNFNetwork.VNFNodes.at(fn );
             SimTest.vnfDelays[fn].prcDelay = calcD_MeanProcessingDelayVNF(dstVNFNode);
             SimTest.vnfDelays[fn].exeDelay = calcD_FunctionExecutionDelay(dstVNFNode);
             for(int fnInst=1; fnInst<=SimTest.finalInstancesCount.at(fn); fnInst++) { ///sequential Queuing Delay
-                SimTest.vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay(cSFC.trafficArrivalRate, dstVNFNode, fnInst, SimTest.TestsResult[name_layerg].seq_utilization);
+                SimTest.vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay(cSFC.trafficArrivalRate, dstVNFNode, fnInst, SimTest.TestsResult[name_kshortestpath].seq_utilization);
             }
         }
 
-        layerGraph_Sequential_Deployement(SimTest, cSFC.index, cSFC.allPartParSFC.front());
-        SimTest.TestsResult[name_layerg].sfcsol[cSFC.index].seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
-
+        kShortestPath_Sequential_Deployement(SimTest, cSFC);
+        SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        SimTest.TestsResult[name_kshortestpath].total_seq_delay += SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].seq_delay;
+        SimTest.TestsResult[name_kshortestpath].total_seq_duration += SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].seq_duration;
     }
-    SimTest.TestsResult[name_layerg].seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
 
-    sfccompleted=1; cout<<"\n";
-    deploy_st = std::chrono::steady_clock::now();
+// FULL ----------------------------------------------------------
+    SimTest.sfccompleted=0;
     for(const ServiceFunctionChain*const& sfcpointer:SimTest.sortedSFCs) {
         const ServiceFunctionChain& cSFC = *sfcpointer;
-        cout<<"\r  fullpar["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
-//        cout<<"\n------------------------------------------------------";
-//        cout<<"\n[LayerG] FullPar | sfc:"<<cSFC.index<<" :  lambda: "<<cSFC.trafficArrivalRate<<" :  vnfs: "<<cSFC.numVNF<<" : PartialChains: "<<cSFC.allPartParSFC.size();
+        SimTest.sfccompleted++; 
+        
         SimTest.vnfDelays.clear();
         auto sfc_st = std::chrono::steady_clock::now();
         for(const unsigned int& fn: cSFC.vnfSeq){ /// finding some vnf delays
@@ -1114,22 +1116,21 @@ void algo_LayerGraph_InstanceMapping(Simulations& SimTest, const bool& showInCon
             SimTest.vnfDelays[fn].prcDelay = calcD_MeanProcessingDelayVNF(dstVNFNode);
             SimTest.vnfDelays[fn].exeDelay = calcD_FunctionExecutionDelay(dstVNFNode);
             for(int fnInst=1; fnInst<=SimTest.finalInstancesCount.at(fn); fnInst++) { ///sequential Queuing Delay
-                SimTest.vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay(cSFC.trafficArrivalRate, dstVNFNode, fnInst, SimTest.TestsResult[name_layerg].fullpar_utilization);
+                SimTest.vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay(cSFC.trafficArrivalRate, dstVNFNode, fnInst, SimTest.TestsResult[name_kshortestpath].fullpar_utilization);
             }
         }
-        layerGraph_FullParallel_Deployment(SimTest, cSFC.index, cSFC.allPartParSFC.back());
-        SimTest.TestsResult[name_layerg].sfcsol[cSFC.index].fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        kShortestPath_FullParallel_Deployment(SimTest, cSFC);
+        SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        SimTest.TestsResult[name_kshortestpath].total_fullpar_delay += SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].fullpar_delay;
+        SimTest.TestsResult[name_kshortestpath].total_fullpar_duration += SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].fullpar_duration;
     }
-    SimTest.TestsResult[name_layerg].fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
 
-
-    sfccompleted=1;
-    deploy_st = std::chrono::steady_clock::now();
+// AllPART ----------------------------------------------------------
+    SimTest.sfccompleted=0; cout<<"\n";
     for(const ServiceFunctionChain*const& sfcpointer:SimTest.sortedSFCs) {
         const ServiceFunctionChain& cSFC = *sfcpointer;
-        cout<<"\n  ppar["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
-//        cout<<"\n---------------------------------------------------------";
-//        cout<<"\n[LayerG] PartPar | sfc:"<<cSFC.index<<" :  lambda: "<<cSFC.trafficArrivalRate<<" :  vnfs: "<<cSFC.numVNF<<" : PartialChains: "<<cSFC.allPartParSFC.size();
+        SimTest.sfccompleted++;  cout<<"\n";
+        
         SimTest.vnfDelays.clear();
         auto sfc_st = std::chrono::steady_clock::now();
         for(const unsigned int& fn: cSFC.vnfSeq){ /// finding some vnf delays
@@ -1137,80 +1138,70 @@ void algo_LayerGraph_InstanceMapping(Simulations& SimTest, const bool& showInCon
             SimTest.vnfDelays[fn].prcDelay = calcD_MeanProcessingDelayVNF(dstVNFNode);
             SimTest.vnfDelays[fn].exeDelay = calcD_FunctionExecutionDelay(dstVNFNode);
             for(int fnInst=1; fnInst<=SimTest.finalInstancesCount.at(fn); fnInst++) { ///Parallel Queuing Delay
-                SimTest.vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay(cSFC.trafficArrivalRate, dstVNFNode, fnInst, SimTest.TestsResult[name_layerg].ppar_utilization);
+                SimTest.vnfDelays[fn].queuingDelay[fnInst] = calcD_QueuingDelay(cSFC.trafficArrivalRate, dstVNFNode, fnInst, SimTest.TestsResult[name_kshortestpath].ppar_utilization);
             }
         }
 
-        layerGraph_PartParallel_Deployement(SimTest, cSFC.index);
-        SimTest.TestsResult[name_layerg].sfcsol[cSFC.index].ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        kShortestPath_PartParallel_Deployement(SimTest, cSFC);
+        SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        SimTest.TestsResult[name_kshortestpath].total_ppar_delay += SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].ppar_delay;
+        SimTest.TestsResult[name_kshortestpath].total_ppar_duration += SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index].ppar_duration;
     }
-    SimTest.TestsResult[name_layerg].ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
+}//Heuristic_kShortestPath_InstanceMapping
 
-}//algo_LayerGraph_InstanceMapping
-
-/*! For a given SFC and its all partial parallel function, find all the possibile instance mappings (brute force).
- * Intance mapping is based on min delay of the path.
- * For a partial parallel chain, it first find all its instance combinations in each stage, then out of all instance mappings it find min delay.
- * @param[in,out] SimTest Simulation Object which contains SFC on which to perform the test.
- * @param showInConsole print in the console.
- * @param showInConsoleDetailed print of each step in the console
+/*! Find SFC's VNF deployment for sequential sfc only, for fully parallel sfc only, for partial-parallel sfc only.
+ * @param SimTest Simulation Object which contains SFC on which to perform the test. 
  */
+void bruteForce_InstanceMapping(Simulations& SimTest) {//bruteForce_InstanceMapping
 
-void algo_PartialChains_InstanceMapping(Simulations& SimTest, const bool& showInConsole = false, const bool& showInConsoleDetailed = false) {//algo_PartialChains_InstanceMapping
+    SimTest.TestsResult[name_bruteForce] = SimTEST(name_bruteForce); ///< simulation test object
+    cout<<"\n ["<<name_bruteForce<<"]\n";
 
-    SimTEST simtest_partial(name_partial);
-    SimTest.TestsResult[name_partial] = std::move(simtest_partial);
-
-    int sfccompleted=1, sfctotal = SimTest.sortedSFCs.size(); cout<<"\n[Partial Enumeration]\n";
-    
-    auto deploy_st = std::chrono::steady_clock::now();
+// SEQ ----------------------------------------------------------
+    SimTest.sfccompleted=0;
     for(const ServiceFunctionChain*const& sfcpointer:SimTest.sortedSFCs) {
         const ServiceFunctionChain& cSFC = *sfcpointer;
-        cout<<"\r  seq["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
-//        cout<<"\n------------------------------------------------------";
-//        cout<<"\n[PartialCh] Seq | sfc:"<<cSFC.index<<" :  lambda: "<<cSFC.trafficArrivalRate<<" :  vnfs: "<<cSFC.numVNF;
+        SimTest.sfccompleted++;
+        cout<<"\r  BF-sequential["<<SimTest.sfccompleted<<"/"<<SimTest.sortedSFCs.size()<<"]";
 
-        SFC_RESULT singleSfcRes; // using this algo what is optimal result for a single sfc.
-        SimTest.TestsResult[name_partial].sfcsol[cSFC.index] = std::move(singleSfcRes); // save result.
+        SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index] = SFC_RESULT(); /// using this algo what is optimal result for a single sfc.
+
         auto sfc_st = std::chrono::steady_clock::now();
-        partialChains_Sequential_Deployment(SimTest, cSFC.index, cSFC.allPartParSFC.front());
-        SimTest.TestsResult[name_partial].sfcsol[cSFC.index].seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        bruteForce_Sequential_Deployment(SimTest, cSFC);
+        SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        SimTest.TestsResult[name_bruteForce].total_seq_delay +=  SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].seq_delay;
+        SimTest.TestsResult[name_bruteForce].total_seq_duration += SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].seq_duration;
     }
-    SimTest.TestsResult[name_partial].seq_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
 
-
-
-    sfccompleted=1; cout<<"\n";
-    deploy_st = std::chrono::steady_clock::now();
+// FULL ----------------------------------------------------------
+    SimTest.sfccompleted=0;
     for(const ServiceFunctionChain*const& sfcpointer:SimTest.sortedSFCs) {
         const ServiceFunctionChain& cSFC = *sfcpointer;
-        cout<<"\r  fullpar["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
-//        cout<<"\n------------------------------------------------------";
-//        cout<<"\n[PartialCh] FullPar | sfc:"<<cSFC.index<<" :  lambda: "<<cSFC.trafficArrivalRate<<" :  vnfs: "<<cSFC.numVNF<<" : PartialChains: "<<cSFC.allPartParSFC.size();
+        SimTest.sfccompleted++;
 
         auto sfc_st = std::chrono::steady_clock::now();
-        partialChains_FullParallel_Deployment(SimTest, cSFC.index, cSFC.allPartParSFC.back());
-        SimTest.TestsResult[name_partial].sfcsol[cSFC.index].fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        bruteForce_FullParallel_Deployment(SimTest, cSFC);
+        SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        SimTest.TestsResult[name_bruteForce].total_fullpar_delay +=  SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].fullpar_delay;
+        SimTest.TestsResult[name_bruteForce].total_fullpar_duration += SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].fullpar_duration;
     }
-    SimTest.TestsResult[name_partial].fullpar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
 
-
-    sfccompleted=1;
-    deploy_st = std::chrono::steady_clock::now();
+// ALL PART----------------------------------------------------------
+    SimTest.sfccompleted=0; cout<<"\n";
     for(const ServiceFunctionChain*const& sfcpointer:SimTest.sortedSFCs) {
         const ServiceFunctionChain& cSFC = *sfcpointer;
-        cout<<"\n  ppar["<<sfccompleted<<"/"<<sfctotal<<"]"; sfccompleted++;
-//        cout<<"\n------------------------------------------------------";
-//        cout<<"\n[PartialCh] PartPar | sfc:"<<cSFC.index<<" :  lambda: "<<cSFC.trafficArrivalRate<<" :  vnfs: "<<cSFC.numVNF<<" : PartialChains: "<<cSFC.allPartParSFC.size();
-        auto sfc_st = std::chrono::steady_clock::now();
-        partialChains_PartParallel_Deployment(SimTest, cSFC.index);
-        SimTest.TestsResult[name_partial].sfcsol[cSFC.index].ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
-    }
-    SimTest.TestsResult[name_partial].ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - deploy_st).count();
+        SimTest.sfccompleted++;  cout<<"\n";
 
-}//algo_PartialChains_InstanceMapping
+        auto sfc_st = std::chrono::steady_clock::now();
+        bruteForce_PartParallel_Deployment(SimTest, cSFC);
+        SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].ppar_duration = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - sfc_st).count();
+        SimTest.TestsResult[name_bruteForce].total_ppar_delay +=  SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].ppar_delay;
+        SimTest.TestsResult[name_bruteForce].total_ppar_duration +=  SimTest.TestsResult[name_bruteForce].sfcsol[cSFC.index].ppar_duration;
+    }
+
+}//bruteForce_InstanceMapping
 
 /* **************************************************************************************************************** */
 
-
 #endif //SFC_PARALLELIZATION_ALGORITHMS_H
+

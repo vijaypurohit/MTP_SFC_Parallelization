@@ -5,22 +5,25 @@
 #ifndef SFC_PARALLELIZATION_FILEFUNCTIONS_H
 #define SFC_PARALLELIZATION_FILEFUNCTIONS_H
 
-
-
-void readConstants(const string& testDirName)
-{
-    ifstream fin;
-    string filepathExt = input_directory + testDirName + filename_constants;
-    fin.open(filepathExt.c_str(), ios::in);
-    if(!fin) {
-        string errorMsg = "File "+filepathExt+ " failed to open. Function: ";
-        fin.clear();
-        throw runtime_error(errorMsg+ __FUNCTION__);
+/*!
+ * Create a directory of output folder with test name.
+ * @param fullDirName name of the directory with slash at the end.
+ * @return true if file does not exist and created now. Else False.
+ */
+bool createDirectory(const string& fullDirName){
+//    if(!filesystem::exists(input_directory + fullDirName) and filesystem::create_directory(input_directory + fullDirName)) {
+//        cout << "Input Directory:[" << input_directory + fullDirName << "] created."<<endl;
+//    }
+    if(!filesystem::exists(output_directory + fullDirName) and filesystem::create_directory(output_directory + fullDirName)) {
+        cout<<"Output Directory:["<<output_directory + fullDirName<<"] created." <<endl;
     }
-    cout<<"\n Reading File: "<<filepathExt<<endl;
-//    fin>>iG_nNodes>>iG_nEdges;
-
+    if(!filesystem::exists(output_directory + fullDirName+ diagram_directory) and filesystem::create_directory(output_directory + fullDirName+ diagram_directory)) {
+        cout<<"Output Graph Directory:["<<output_directory + fullDirName+ diagram_directory<<"] created."<<endl;
+        return true;
+    }
+    return false;
 }
+
 
 /*!Function will read the network data from the input directory and read into graph structure. \n
  * Also calculate the all pairs shortest path. Set number of edges read. \n
@@ -53,7 +56,7 @@ bool readNetwork(const std::string& dirName, const std::string& filename_network
     type_wgt readEdge_wgt; ///< edge weight
     /// if successfully read number of nodes and edges of graph
     if(fin>>iG_nNodes>>edgesReadingAs and iG_nNodes){
-        graph = PhysicalGraph(iG_nNodes,iG_nEdges);
+        graph = std::move(PhysicalGraph(iG_nNodes,iG_nEdges));
 
         unsigned int readNode_idx, readNodeCap_cores;
         unsigned int ns=0; /// number of servers
@@ -99,9 +102,7 @@ bool readNetwork(const std::string& dirName, const std::string& filename_network
             ne = ne/2; //undirected graph each edge counted twice.
         }else return false;
         graph.setNumOfEdges(ne); ///< set number of edges.
-        if(debug){
-            cout<<"\tG("<<iG_nNodes<<","<<ne<<") | Servers: "<<ns;
-        }
+        if(debug){ cout<<"\tG("<<iG_nNodes<<","<<ne<<") | Servers: "<<ns; }
     } else{
         string errorMsg = "Invalid Input Values V and M/L. File "+filepathExt+ ". Function: ";
         throw runtime_error(errorMsg+ __FUNCTION__);
@@ -139,7 +140,7 @@ bool readVirtualNetworkFunctions(const std::string& dirName, const std::string& 
 
     unsigned int i_nVNF; // input num of VNFs
     if(fin>>i_nVNF){
-        allVNFs = VirtualNetworkFunctions(i_nVNF);
+        allVNFs = std::move(VirtualNetworkFunctions(i_nVNF));
         string readVNF_name; unsigned int readVNF_idx, readVNF_Req_cores=0; type_delay readVNF_serviceR=0,readVNF_execTime=0;
         for(int ni=1; ni<=i_nVNF; ni++){ /// For each node there is a row which would be read
             fin.ignore(); getline(fin, readVNF_name);
@@ -161,54 +162,4 @@ bool readVirtualNetworkFunctions(const std::string& dirName, const std::string& 
 }
 
 
-
-
-
-
-/*! Function will read the Virtual Machine data from the file in the input directory and read into VirtualMachine class.\n\n
- * First Line in file consist of numOfVM M\n
- * from next line upto M times, each group consist\n
- * Name of VM\n
- * VM_index\n
- * Capacity[cores  memory  disk    speed]\n
- * Requirement[cores  memory  disk    speed]
- * @param testDirName  path to the current test directory which consists of inputs files
- * @param ptr VirtualMachines class pointer variable to store value
- * @param showinConsole show the file read values in the console
- */
-//void readVirtualMachines(const string& testDirName, VirtualMachines **const& ptr, bool showinConsole=false) {
-//    ifstream fin;
-//    string filepathExt = input_directory + testDirName + filename_virtualmachines;
-//    fin.open(filepathExt.c_str(), ios::in);
-//    if(!fin) {
-//        string errorMsg = "File "+filepathExt+ " failed to open. Function: ";
-//        fin.clear();
-//        throw runtime_error(errorMsg+ __FUNCTION__);
-//    }
-//    if(debug)cout<<"\n["<<__FUNCTION__<<"] VM File:"<<filepathExt<<endl;
-//    unsigned int i_nVM; // input num of VMs
-//    if(fin>>i_nVM){
-//        *ptr = new VirtualMachines(i_nVM);
-//        string readVM_name;   unsigned int readVM_idx, readVM_Cap_cores, readVM_Req_cores;
-//        type_res readVM_Cap_memory, readVM_Cap_disk, readVM_Cap_cpuspeed, readVM_Req_memory, readVM_Req_disk, readVM_Req_cpuspeed;
-//        for(int ni=1; ni<=i_nVM; ni++) /// For each node there is a row which would be read
-//        {
-//            fin.ignore();
-//            getline(fin, readVM_name);
-//            if (!(fin>>readVM_idx>>readVM_Cap_cores>>readVM_Cap_memory>>readVM_Cap_disk>>readVM_Cap_cpuspeed>>readVM_Req_cores>>readVM_Req_memory>>readVM_Req_disk>>readVM_Req_cpuspeed))
-//                std::cerr << "\t VM Data Reading Failed: VM Row["<<ni<<"]\n";
-//            (*ptr)->VMNode[readVM_idx] = new VirtualMachineNode(readVM_idx, readVM_name,
-//                                                                NodeCapacity(readVM_Cap_cores),
-//                                                                NodeCapacity(readVM_Req_cores) );
-//            if(showinConsole)cout<<readVM_idx<<"-"<<readVM_name<<"-["<<readVM_Cap_cores<<"-"<<readVM_Cap_memory<<"-"<<readVM_Cap_disk<<"-"<<readVM_Cap_cpuspeed
-//                                 <<"]-["<<readVM_Cap_cores<<"-"<<readVM_Cap_memory<<"-"<<readVM_Cap_disk<<"-"<<readVM_Cap_cpuspeed<<"]"<<endl;
-//        }
-//        if(debug)cout<<"\t[VM Data Reading Completed] VMs:"<<i_nVM;
-//    }else{
-//        string errorMsg = "Invalid Input File Values. File "+filepathExt+ ". Function: ";
-//        throw runtime_error(errorMsg+ __FUNCTION__);
-//    }
-//    fin.close();
-////    if(debug)cout<<"\n[Function Completed: "<<__FUNCTION__<<"]";
-//}
 #endif //SFC_PARALLELIZATION_FILEFUNCTIONS_H

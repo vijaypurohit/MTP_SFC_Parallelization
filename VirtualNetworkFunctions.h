@@ -9,7 +9,6 @@
 class VNFNode
 {   public:
     unsigned int index  /*! physical node index. Type int.*/;  string name /*! node name  */;
-//    unsigned int numInstances{1}; ///< number of instances of vnf.
     type_delay serviceRate; ///< rate of service of vnf. in packets per second. arrival rate < service rate.
     type_delay executionTime; ///< time taken to execute the particular function
     NodeCapacity requirement; ///<  requirements  of the VM node. Type NodeCapacity.
@@ -42,7 +41,6 @@ public:
 
     void Algorithm_NF_Parallelism_Identification();
 
-     void showVNFs_Utilization(const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> &util, int type) const;
  };
 
 
@@ -55,7 +53,6 @@ void VirtualNetworkFunctions::showVNFs_Description() const{
         const VNFNode& vnfInfo = VNFNodes.at(u);
         cout<<std::setw(3)<<"\nf"<<vnfInfo.index<<" | ";
         cout<<std::setw(12)<<vnfInfo.name<<" | ";
-//        cout<<std::setw(2)<<"("<<vnfInfo.numInstances<<") | ";
         cout<<std::setw(4)<<vnfInfo.serviceRate<<"ps | ";
         cout<<std::setw(4)<<vnfInfo.executionTime<<"ms | ";
         cout<<std::setw(2)<<"["<<vnfInfo.requirement.cores<<"]";
