@@ -82,6 +82,7 @@ public:
 
 /*!  Show Network Adjacency Matrix in console.*/
 void PhysicalGraph::showAdjMatrix() const{
+
     cout << "\n\n ----- Adjacency Matrix of G(" << numV<<", "<<numE<<") :: (in meters)";
     cout<<std::setw(2)<<"\nV:\t";  for (unsigned int v = srcV; v <= numV; ++v)  cout <<std::setw(7)<<v<< "\t"; cout<<endl;
     for (unsigned int v = 0; v <= numV; ++v) cout <<std::setw(7)<<"------"<< "\t";
@@ -182,7 +183,7 @@ void PhysicalGraph::calcAllPairsShortestPath()
             }
         }
     }
-    if(debug)cout<<"\n\t[Calculated All Pairs Shortest Path]";
+    if(debug)cout<<"\n\tCalculated All Pairs Shortest Path";
 }
 
 vector<unsigned int> PhysicalGraph::constructShortestPath(const unsigned int& FromSrc, const unsigned int& ToDst)

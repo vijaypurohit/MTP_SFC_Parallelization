@@ -1,4 +1,7 @@
 .idea/
 cmake-build-*/*
 *.exe
+*.class
 files_output/**/*
+files_input/**/SFC*.txt
+files_input/**/VNF*.txt

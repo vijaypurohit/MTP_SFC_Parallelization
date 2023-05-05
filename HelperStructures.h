@@ -164,6 +164,7 @@ public:
     double total_seq_duration{0}, total_ppar_duration{0}, total_fullpar_duration{0}; ///< time taken to construct the solution with/without parallelism
     unordered_map<unsigned int, unordered_map<unsigned int, type_delay>> seq_utilization, ppar_utilization, fullpar_utilization; ///< utilization of the VNF_Inst. {VNFid -> {instid -> utilization}} for sequential and parallel chain
     type_delay total_seq_delay{0}, total_ppar_delay{0}, total_fullpar_delay{0};///< sum of delays
+    type_delay total_seq_load{0}, total_fullpar_load{0}, total_ppar_load{0};
     explicit SimTEST(string name){
         this->name = std::move(name);
     }

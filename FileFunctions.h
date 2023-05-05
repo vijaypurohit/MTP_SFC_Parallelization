@@ -24,7 +24,6 @@ bool createDirectory(const string& fullDirName){
     return false;
 }
 
-
 /*!Function will read the network data from the input directory and read into graph structure. \n
  * Also calculate the all pairs shortest path. Set number of edges read. \n
  * First line in file consists of numberofNodes N and whether to read data from adjaceny List (L) or Adjacency matrix(M). \n
@@ -41,6 +40,8 @@ bool createDirectory(const string& fullDirName){
  */
 bool readNetwork(const std::string& dirName, const std::string& filename_network, PhysicalGraph& graph, bool showinConsole=false)
 {//readNetwork
+    std::cout.precision( numeric_limits<double>::digits10  );
+
     ifstream fin;
     string filepathExt = input_directory + dirName + filename_network;
     fin.open(filepathExt.c_str(), ios::in);
@@ -108,13 +109,11 @@ bool readNetwork(const std::string& dirName, const std::string& filename_network
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
     fin.close();
-    graph.filename_network = filename_network;
+    graph.filename_network = filename_network.substr(0,filename_network.find('.'));
     graph.calcClusteringCoefficient();
     graph.calcAllPairsShortestPath();
     return true;
 }//readNetwork
-
-
 
 /*! Function will read the VNF data from the file in the input directory and read into VNFNode class and VirtualNetworkFunction class.\n\n
  * Also Calculate Parallel Pairs. \n\n
@@ -157,9 +156,8 @@ bool readVirtualNetworkFunctions(const std::string& dirName, const std::string& 
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
     fin.close();
-    allVNFs.filename_vnf = filename_vnf;
+    allVNFs.filename_vnf = filename_vnf.substr(0,filename_vnf.find('.'));
     return true;
 }
-
 
 #endif //SFC_PARALLELIZATION_FILEFUNCTIONS_H

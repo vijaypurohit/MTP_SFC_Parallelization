@@ -4,6 +4,14 @@
 
 #ifndef SFC_PARALLELIZATION_VARIABLES_H
 #define SFC_PARALLELIZATION_VARIABLES_H
+/// for Linux and Windows Pause and Clear Command
+#if defined(_WIN64) || defined(_WIN32)
+#define PAUSE "pause"
+#define CLR "cls"
+#elif defined(unix) || defined(__unix__) || defined(__unix)
+#define PAUSE "read -p 'Press Enter to continue...' var"
+    #define CLR "clear"
+#endif
 
 /* *************** Constants *************** */
 #define algosuccess true
@@ -17,7 +25,7 @@
 #define showDetailed 2 ///< debug var to show intermediate result also
 
 #define maxSFCLength 10 ///< maximum length of sfc.
-#define maxNumVNFs 12 ///< maximum length of sfc.
+const unsigned int maxNumVNFs = 12; ///< maximum length of sfc.
 
 static const std::string input_directory = "files_input/", output_directory = "files_output/", diagram_directory = "graphs/";
 static const std::string name_kshortestpath = "Heuristic-KShortestPath"; ///< heuristic name to be used

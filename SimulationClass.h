@@ -27,6 +27,7 @@ public:
     unordered_map<unsigned int, unordered_map<unsigned int, double>> likelihood;/*!< Likelihood of parallelizing two functions fi and fj defined as L_{fi,fj} = |num of sfc in which fi and fj are present and are parallelizable| divided by |numOfSFCS|*/
 
     ///VNF Deployement Mappings
+    type_delay total_service_capacity = 0;
     unordered_map<unsigned int, unsigned int> finalInstancesCount; ///< count of instances of each function
     unordered_map<unsigned int, vector<pair<unsigned int,unsigned int>>> PN_2_VNF;
     unordered_map<unsigned int, unordered_map<unsigned int, unsigned int>> I_VNFINST_2_PN; ///< VNF {type,inst} is hosted on which PN. {VNFid -> {instid -> PN id}} ie. arr[vnf][inst]=pnid;, inst->1based indexing
@@ -35,7 +36,9 @@ public:
     unordered_map<string, SimTEST> TestsResult;
     unordered_map<unsigned int, vnfDelaysPreComputed> vnfDelays;///< pre-calculated VNF delays (processing, execution and queuing delay). Before iterating all the partial par sfc it is better to calculate it for each chain as they will be same for each chain.
     int sfccompleted{1};
-
+    /*! @param simulation_name Name to identify the simulation instance
+     * @param directory directory on which it is running.
+     */
     Simulations(string simulation_name, string directory){
         this->sim_name = std::move(simulation_name);
         this->dirName = std::move(directory);
@@ -146,6 +149,8 @@ void Simulations::showVNFsUtilization(const int& type, const SimTEST& result) co
 }
 
 void Simulations::getUtilization(const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& util)const {
+    type_delay tcap=0;
+    type_delay trate=0;
     for (unsigned int f = VNFNetwork.srcVNF; f <=VNFNetwork.numVNF; ++f){
         const VNFNode& vnfInfo = VNFNetwork.VNFNodes.at(f);
         cout<<"f"<<vnfInfo.index<<" ("<<vnfInfo.serviceRate<<"ms):  ";
@@ -156,8 +161,11 @@ void Simulations::getUtilization(const unordered_map<unsigned int, unordered_map
             else cout<<"0 (0 %)";
 
             cout<<"]\t";
+            trate += util.at(vnfInfo.index).at(inst);
+            tcap += vnfInfo.serviceRate;
         }cout<<"\n";
     }
+    cout<<"System Load: "<<(trate/tcap)*100.0<<"%";
 }
 
 void Simulations::showSimulationTestResults(const SimTEST& result){
@@ -193,7 +201,9 @@ void Simulations::showSimulationTestResults(const SimTEST& result){
             for(const auto &blk: (*sfc.partialParallelChains)[sfcres.ppar_pid]) { cout << " [";  for(const auto& fnid: blk){ cout << "f" << fnid << char(96 + sfcres.ppar_fninstmap.at(fnid)) << " "; }   cout << "]";}
         }else cout<<":  -- ";
     }//all SFC
+    cout<<"\nTotal Delay: [Seq: "<<result.total_seq_delay<<"] [Fully-Par: " << result.total_fullpar_delay << "] [Partial-Par: " << result.total_ppar_delay<<"]";
     cout<<"\nDeployement Duration: [Seq: "<<result.total_seq_duration<<"] [Fully-Par: " << result.total_fullpar_duration << "] [Partial-Par: " << result.total_ppar_duration<<"]";
+    cout<<"\nSysyem Load: [Seq: "<<(result.total_seq_load/total_service_capacity)*100.0<<"%] [Fully-Par: " <<(result.total_fullpar_load/total_service_capacity)*100.0 << "%] [Partial-Par: " << (result.total_ppar_load/total_service_capacity)*100.0<<"%]";
     cout<<"\n---------------------------------------------------------";
 }
 
@@ -305,28 +315,26 @@ bool Simulations::readDataFromFileInit(const string& fileNetwork, const string& 
  * Write the Simulation Result into csv file.
  */
 bool Simulations::writeInFileSimulationTestResults(const int& observation = 1, const _Ios_Openmode& filemode = ios::out, const string& otherval = ""){
+    bool allowHeader =false;
     ofstream fout;
-    string filepathExt = output_directory+fullDirName+"ST_"+sim_name+"-"+filename_sfc+"-Result.csv";///< path to .gv file without extention
+    string filepathExt = output_directory+fullDirName+"ST_"+sim_name+"-Result.csv";///< path to .gv file without extention
     fout.open(filepathExt.c_str(), filemode);
     if (!fout) {
         fout.clear();
-        filepathExt += "-Result-renamedForError.csv";///< path to .gv file without extention
+        filepathExt += "-Result-Renamed-"+to_string(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count())+".csv";///< path to .gv file without extention
         fout.open(filepathExt.c_str(), ios::out);
         if(!fout){
             fout.clear();
             std::cerr <<"\n"<<__FUNCTION__ <<" caught: "+filepathExt+ " failed to open.";
             return false;
         }
-        fout<<"Observation, sfcID, Len, ArrivalRate, numSubsetChains, numPartialChains"; ///< HEADER LINE
-        for(const auto& _: TestsResult){
-            fout<<","<<_.first+", SeqDelay, FullyParDelay, PartParDelay, SeqDuration, FullyParDuration, PartParDuration,  SeqRes, FullyParRes, PartParRes";
-        }
+        allowHeader = true;
     }
-    else if(filemode != ios::app){ /// if not appened mode
+    if(filemode != ios::app or allowHeader){ /// if not appened mode
         /// observation idx | sfc detial | seq res | full par res | partial par res | seq duration | full par duration | partial par duration | sfc
         fout<<"Observation, sfcID, Len, ArrivalRate, numSubsetChains, numPartialChains"; ///< HEADER LINE
         for(const auto& _: TestsResult){
-            fout<<","<<_.first+", SeqDelay, FullyParDelay, PartParDelay,  SeqLoad, FullyParLoad, PartParLoad, SeqDuration, FullyParDuration, PartParDuration,  SeqRes, FullyParRes, PartParRes";
+            fout<<","<<_.first+", SeqDelay, FullyParDelay, PartParDelay,  SeqLoad, FullyParLoad, PartParLoad, SeqDuration, FullyParDuration, PartParDuration,  SeqRes, FullyParRes, PartParRes, FullyParDeg, PartParDeg";
         }
     }
     if(!otherval.empty())fout<<"\n"<<otherval<<",";
@@ -346,22 +354,28 @@ bool Simulations::writeInFileSimulationTestResults(const int& observation = 1, c
             if(sfcres.seq_fninstmap.empty()) fout<<",";
             else{ fout<<",Seq:("; for(const auto& fnid : sfc.vnfSeq){ fout<<"f"<<fnid<<char(96+sfcres.seq_fninstmap.at(fnid))<<"; "; } fout<<")"; }
 
+            unsigned int degOfParallelism_fullpar = 0; ///< the maximal number of parallelized NFs in any step
             if(sfcres.fullpar_fninstmap.empty()) fout<<",";
             else{ fout<<",FullPar:";
-                 for(const auto& blk: sfc.vnfBlocksPar){  fout<<" ["; for(int fnid: blk){ fout << "f" << fnid << char(96 + sfcres.fullpar_fninstmap.at(fnid)) << " "; } fout<<"]"; }
+                 for(const auto& blk: sfc.vnfBlocksPar){  fout<<" ["; for(int fnid: blk){ fout << "f" << fnid << char(96 + sfcres.fullpar_fninstmap.at(fnid)) << " "; } fout<<"]";
+                     if(blk.size() > degOfParallelism_fullpar) degOfParallelism_fullpar = blk.size(); }
             }
 
+            unsigned int degOfParallelism_ppar = 0; ///< the maximal number of parallelized NFs in any step
             if(sfcres.ppar_fninstmap.empty()) fout<<",";
             else{ fout<<",PartPar("<< sfcres.ppar_pid << "):";
-                for(const auto &blk: (*sfc.partialParallelChains)[sfcres.ppar_pid]) { fout << " [";  for(const auto& fnid: blk){ fout << "f" << fnid << char(96 + sfcres.ppar_fninstmap.at(fnid)) << " "; }   fout << "]";}
+                for(const auto &blk: (*sfc.partialParallelChains)[sfcres.ppar_pid]) { fout << " [";  for(const auto& fnid: blk){ fout << "f" << fnid << char(96 + sfcres.ppar_fninstmap.at(fnid)) << " "; }   fout << "]";
+                    if(blk.size() > degOfParallelism_ppar) degOfParallelism_ppar = blk.size(); }
             }
+            fout<<","<<degOfParallelism_fullpar<<","<<degOfParallelism_ppar;
         }
         fout<<"\n"<<",";
     }
     fout<<",,,,,";
     for(const auto& [nameST,objST]: TestsResult){
-        fout<<nameST<<","<<objST.total_seq_delay<<","<<objST.total_fullpar_delay<<","<<objST.total_ppar_delay<<", , , ,";
-        fout<<objST.total_seq_duration<<", "<< objST.total_fullpar_duration <<", "<<objST.total_ppar_duration<<", , , ,";
+        fout<<nameST<<","<<objST.total_seq_delay<<","<<objST.total_fullpar_delay<<","<<objST.total_ppar_delay<<",";
+        fout<<(objST.total_seq_load/total_service_capacity)*100.0<<","<<(objST.total_fullpar_load/total_service_capacity)*100.0<<","<<(objST.total_ppar_load/total_service_capacity)*100.0<<",";
+        fout<<objST.total_seq_duration<<", "<< objST.total_fullpar_duration <<", "<<objST.total_ppar_duration<<", , , , , ,";
     }
 
     fout.close();
@@ -681,26 +695,28 @@ bool Simulations::findRandomParallelPairs(const float& threshold, int option){
     if(debug)cout<<"\n\tRandom Parallel Pairs: "<<(100.0*numParallelPairs/totalPairs)<<"% | "<<numParallelPairs<<" out of "<<totalPairs<<" unique pairs.";
     /// writing to file.
     ofstream fout;
-    string filepathExt = output_directory+fullDirName+"ST_"+sim_name+"_Th_"+to_string((100*numParallelPairs/totalPairs))+"_ParallelPairs_"+VNFNetwork.filename_vnf;///< path to .gv file without extention
+    string filepathExt = output_directory+fullDirName+"ST_"+sim_name+"-Th"+to_string((100*numParallelPairs/totalPairs))+"_ParallelPairs.txt";
     fout.open(filepathExt.c_str(), ios::out);
     if (!fout) {
         string errorMsg = "File "+filepathExt+ " failed to open. Function: ";
         fout.clear();
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
-    fout<<"\n{";
+    fout<<"\n\tRandom Parallel Pairs: "<<(100.0*numParallelPairs/totalPairs)<<"% | "<<numParallelPairs<<" out of "<<totalPairs<<" unique pairs.";
+    ///for reuse
+    fout<<"\nparallelPairs={";
     for(int i_vnf=VNFNetwork.srcVNF; i_vnf<=numVNF; i_vnf++) {
         fout<<"\n  {"<<i_vnf<<",{"; int cnt = 1;
         for(const auto& j_vnf: parallelPairs[i_vnf]){
 
             fout<<"{"<<j_vnf.first<<",";
-            if(j_vnf.second == pktNoCopy) cout<<"pktNoCopy}";
-            else cout<<"pktCopy}";
-            if(cnt != parallelPairs[i_vnf].size()) cout<<", ";
+            if(j_vnf.second == pktNoCopy) fout<<"pktNoCopy}";
+            else fout<<"pktCopy}";
+            if(cnt != parallelPairs[i_vnf].size()) fout<<", ";
             cnt++;
         }
         fout<<"}}";
-        if(i_vnf != numVNF) cout<<", ";
+        if(i_vnf != numVNF) fout<<", ";
     }// i
     fout<<"\n};";
     fout.close();
@@ -713,7 +729,6 @@ bool Simulations::findRandomParallelPairs(const float& threshold, int option){
  */
 bool Simulations::calcLikelihoodOfTwoFunctions(const int& opt, const int& showInConsole){
     likelihood.clear();
-
     auto intersect = [&](const unordered_set<unsigned int>& SFC_OF_FI, const unordered_set<unsigned int>& SFC_OF_FJ)->unsigned int{
         unsigned int count=0;
         for(const auto& sfcidx: SFC_OF_FI){
@@ -761,6 +776,7 @@ bool Simulations::DeploymentVNF_ScoreMethod(const float& fnInstScalingFactor, co
     if((fnInstScalingFactor<0 or fnInstScalingFactor>1) or (alphaDecayRate<=0 or alphaDecayRate>=1) or (choice_pxs<=0 or choice_pxs >=3) or (choice_dist_pref<=0 or choice_dist_pref >=3))
         return false;
 
+    total_service_capacity = 0;
     finalInstancesCount.clear();
     PN_2_VNF.clear();
     I_VNFINST_2_PN.clear();
@@ -977,6 +993,7 @@ bool Simulations::DeploymentVNF_ScoreMethod(const float& fnInstScalingFactor, co
             }
 
             finalInstancesCount[f]++; /// update the final instance count of each VNF
+            total_service_capacity += VNFNetwork.VNFNodes[f].serviceRate;
             totalInstDeployed++;
             totalCoresUsed+=reqcore;
         } /// for each inst
@@ -999,7 +1016,8 @@ bool Simulations::DeploymentVNF_ScoreMethod(const float& fnInstScalingFactor, co
 
 
     ofstream fout;
-    string filepathExt = output_directory+fullDirName+"ST_"+sim_name+"-VNFDeployment-"+VNFNetwork.filename_vnf;///< path to .gv file without extention
+    string filepathExt = output_directory+fullDirName+"ST_"+sim_name+"-VNFDeployment-"+filename_sfc+".txt";
+
     fout.open(filepathExt.c_str(), ios::out);
     if (!fout) {
         string errorMsg = "File "+filepathExt+ " failed to open. Function: ";
@@ -1012,7 +1030,9 @@ bool Simulations::DeploymentVNF_ScoreMethod(const float& fnInstScalingFactor, co
     fout<<"\n   * opt pxs: "<<choice_pxs<<" Choice of pxs(opt=1 choose bst candidate physical node for vnfcur, opt=2 choose bst candidate node for fcur-1(prev))";
     fout<<"\n   * opt dist: "<<choice_dist_pref<<" Choice of distance in sfc preferece(opt=1 distance prefernce based on hop count, opt=2 based on actual nearest distance";
 
-    fout<<"\n\nVNFs ("<<VNFNetwork.filename_vnf<<") Deployement on the Network ("<<PhysicalNetwork.filename_network<<")";
+    fout<<"\n\nVNFs ("<<VNFNetwork.filename_vnf<<") Deployement on the Network ("<<PhysicalNetwork.filename_network<<") Based on SFCs ("<<filename_sfc<<")";
+    fout<<"\n\tRandom Parallel Pairs: "<<(100.0*numParallelPairs/totalPairs)<<"% | "<<numParallelPairs<<" out of "<<totalPairs<<" unique pairs.";
+    fout<<"\n\tLikelihood mean: "<<likelihood_mean;
 
 /// for readability --------------------------------
     fout<<"\n\nVNF to Node mapping: Total [NW Cores: "<<PhysicalNetwork.sum_cores<<"] [Instances Deployed: "<<totalInstDeployed<<" | Cores Used: "<<totalCoresUsed<<" | Demand: "<<demand<<"]";

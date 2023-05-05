@@ -185,7 +185,7 @@ bool GenerateRandomSFCs(const unsigned int& numPN, const unsigned int& numVNF, c
                 fout << vnfseq[i] << ' ';
             }
         }
-        fout<<"\n\n";
+        if(idx!=numOfSFCsNeeded-1)fout<<"\n\n";
     }//cnt<=numOfSFCsNeeded
 
     return true;
@@ -199,9 +199,9 @@ bool GenerateRandomSFCs(const unsigned int& numPN, const unsigned int& numVNF, c
  * @param filename_vnfs filename of vnf to be saved
  * @return status
  */
-bool GenerateRandomVNFs(unsigned int& numOfVNFsNeeded, const pair<type_delay, type_delay>& serviceRateRange, const pair<type_delay, type_delay>& funExeTimeRange, const string& fullDirName, const string& filename_vnfs){//GenerateRandomVNFs
+bool GenerateRandomVNFs(unsigned int numOfVNFsNeeded, const pair<type_delay, type_delay>& serviceRateRange, const pair<type_delay, type_delay>& funExeTimeRange, const string& fullDirName, const string& filename_vnfs){//GenerateRandomVNFs
 
-    if(numOfVNFsNeeded > maxNumVNFs) numOfVNFsNeeded = maxNumVNFs;
+    if(numOfVNFsNeeded > maxNumVNFs) numOfVNFsNeeded = (unsigned int)maxNumVNFs;
 
     const unsigned int srcVNF = 1;
 
@@ -370,6 +370,7 @@ int bruteForce_Sequential_Deployment(Simulations& SimTest, const ServiceFunction
 
     for(const auto& [fn, fninst]: singleSfcRes.seq_fninstmap){
         SimTest.TestsResult[name_bruteForce].seq_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_bruteForce].total_seq_load += cSFC.trafficArrivalRate;
 //        cout<<"{"<<fn<<","<<fninst<<"},";
     }
     if(showInConsole >= showFinal){
@@ -423,6 +424,7 @@ int bruteForce_FullParallel_Deployment(Simulations& SimTest, const ServiceFuncti
 
     for(const auto& [fn, fninst]: singleSfcRes.fullpar_fninstmap){
         SimTest.TestsResult[name_bruteForce].fullpar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_bruteForce].total_fullpar_load += cSFC.trafficArrivalRate;
     }
     if(showInConsole == showFinal){
         cout<<"\n BruteForce-Instance-Assignment:: Fully-Parallel: SFCid:"<<cSFC.index<<" |  delay:["<<singleSfcRes.fullpar_delay<<"] ("<<singleSfcRes.fullpar_load<<"%) :";
@@ -500,6 +502,7 @@ bool bruteForce_PartParallel_Deployment(Simulations& SimTest, const ServiceFunct
     // update
     for(const auto& [fn, fninst]: singleSfcRes.ppar_fninstmap){
         SimTest.TestsResult[name_bruteForce].ppar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_bruteForce].total_ppar_load += cSFC.trafficArrivalRate;
     }
     
     if(showInConsole == showFinal){
@@ -904,6 +907,7 @@ bool kShortestPath_Sequential_Deployement(Simulations& SimTest, const ServiceFun
     /// if we found the mapping for sequential chain
     for(const auto& [fn, fninst]: singleSfcRes.seq_fninstmap){
         SimTest.TestsResult[name_kshortestpath].seq_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_kshortestpath].total_seq_load += cSFC.trafficArrivalRate;
 //        cout<<"{"<<fn<<","<<fninst<<"},";
     }
 
@@ -971,6 +975,7 @@ bool kShortestPath_FullParallel_Deployment(Simulations& SimTest, const ServiceFu
     /// if we found the mapping for sequential chain
     for(const auto& [fn, fninst]: singleSfcRes.fullpar_fninstmap){
         SimTest.TestsResult[name_kshortestpath].fullpar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_kshortestpath].total_fullpar_load += cSFC.trafficArrivalRate;
     }
 
     if(showInConsole == showFinal) {
@@ -1056,6 +1061,7 @@ bool kShortestPath_PartParallel_Deployement(Simulations& SimTest, const ServiceF
     /// if we found the mapping for parallel chain
     for(const auto& [fn, fninst]: singleSfcRes.ppar_fninstmap){
         SimTest.TestsResult[name_kshortestpath].ppar_utilization[fn][fninst] += cSFC.trafficArrivalRate;
+        SimTest.TestsResult[name_kshortestpath].total_ppar_load += cSFC.trafficArrivalRate;
     }
 
     if(showInConsole == showFinal) {

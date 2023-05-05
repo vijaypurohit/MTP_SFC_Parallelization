@@ -37,7 +37,6 @@ type_delay calcD_TransmissionDelay(){
  *  min = 3.33e-9 s ( 1 m/ 3*10^8 ). \n
  *  max = 0.04252 s (12756000 m/ 3*10^8).
  */
-
 type_delay calcD_PropagationDelay(const unsigned int& n1, const unsigned int& n2, const PhysicalGraph& PhysicalNetwork){
     const auto& len_n1_n2 = (type_delay)PhysicalNetwork.dist[n1][n2];
     const auto& speed = velocityFactor * (type_delay)speedOfLight;
@@ -54,7 +53,6 @@ type_delay calcD_PropagationDelay(const unsigned int& n1, const unsigned int& n2
  * @param oldUtilization old utilisation of the current function type and instance till now.
  * @return queuing delay in seconds.
  */
-
 type_delay calcD_QueuingDelay( const type_delay& cSFCArrivalRate, const VNFNode& fnNode, const unsigned int& fnInstId,
                             const unordered_map<unsigned int, unordered_map<unsigned int, type_delay>>& oldUtilization){
     const unsigned int& fnType =  fnNode.index;
@@ -79,7 +77,6 @@ type_delay calcD_QueuingDelay( const type_delay& cSFCArrivalRate, const VNFNode&
  * @param VNFNode for function execution time.
  * @return execution time in seconds.
  */
-
 type_delay calcD_FunctionExecutionDelay(const VNFNode& VNFNode){
     const auto& exeTime = (type_delay)VNFNode.executionTime;
     return exeTime;
@@ -90,7 +87,6 @@ type_delay calcD_FunctionExecutionDelay(const VNFNode& VNFNode){
  * @param VNFNode VNF Node class for service rate
  * @return mean processing delay in seconds.
  */
-
 type_delay calcD_MeanProcessingDelayVNF(const VNFNode& VNFNode){
     const auto& mu_f = (type_delay)VNFNode.serviceRate;
     return (1/mu_f);
