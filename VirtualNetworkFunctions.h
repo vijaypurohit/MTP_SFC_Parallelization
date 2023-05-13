@@ -41,8 +41,23 @@ public:
 
     void Algorithm_NF_Parallelism_Identification();
 
- };
+    void setVNFFnx(const type_delay &T_fnx);
+    void setVNFFnxFromRange(const pair<type_delay, type_delay>& funExeTimeRange);
+};
 
+void VirtualNetworkFunctions::setVNFFnx(const type_delay& T_fnx){
+    for (auto& vnfInfo: VNFNodes){
+        vnfInfo.second.executionTime = T_fnx;
+    }
+}
+
+ void VirtualNetworkFunctions::setVNFFnxFromRange(const pair<type_delay, type_delay>& funExeTimeRange){
+     std::mt19937_64 rd_generator(std::chrono::system_clock::now().time_since_epoch().count());
+     std::uniform_real_distribution<type_delay> rd_fnexetime_distribution(funExeTimeRange.first, funExeTimeRange.second);
+     for (auto& vnfInfo: VNFNodes){
+         vnfInfo.second.executionTime = rd_fnexetime_distribution(rd_generator);
+     }
+ }
 
 /*! Show all the Virtual Machine nodes and their description */
 void VirtualNetworkFunctions::showVNFs_Description() const{
@@ -70,13 +85,13 @@ void VirtualNetworkFunctions::showVNFs_Description() const{
 void VirtualNetworkFunctions::Algorithm_NF_Parallelism_Identification(){
 
      struct pktFields{
-         unordered_map<int, int> info{};
-         explicit pktFields(unordered_map<int, int> x){  info = std::move(x);  }
+         vector<pair<int, int>> info{};
+         explicit pktFields(vector<pair<int, int>> x){  info = std::move(x);  }
      };
 
-    enum {R=1, W=2, RW=2, T=3};
-    enum {SIP=1, DIP, SPORT, DPORT, Payload, AddRm, Drop};
-    enum {NOT_PARALLELIZABLE=-1, PARALLELIZABLE_NO_COPY=1, PARALLELIZABLE_WITH_COPY=2};
+    enum {R=10, W, RW, T};
+    enum {SIP=20, DIP, SPORT, DPORT, Payload, AddRm, Drop};
+    enum {NOT_PARALLELIZABLE=30, PARALLELIZABLE_NO_COPY, PARALLELIZABLE_WITH_COPY};
 
      unordered_map<int, unordered_map<int,int>> DepTable ={
             {R,     {{R, PARALLELIZABLE_NO_COPY},{W, PARALLELIZABLE_WITH_COPY}, {AddRm, PARALLELIZABLE_WITH_COPY},  {Drop, PARALLELIZABLE_NO_COPY}} },
@@ -87,15 +102,15 @@ void VirtualNetworkFunctions::Algorithm_NF_Parallelism_Identification(){
 
     int n = 12; // number of VNF
     vector<pktFields*> vnfPktInfo(n+1);
-    vnfPktInfo[1] = new pktFields({{SIP, R}, {DIP, R}, {SPORT, R}, {DPORT, R}, {Drop, T}});
+    vnfPktInfo[1] = new pktFields({{SIP, R}, {DIP, R}, {SPORT, R}, {DPORT, R}, {Drop, Drop}});
     vnfPktInfo[2] = new pktFields({{SIP, R}, {DIP, R}, {SPORT, R}, {DPORT, R}, {Payload, R}});
     vnfPktInfo[3] = new pktFields({{SIP, R}, {DIP, R}});
-    vnfPktInfo[4] = new pktFields({{SIP, RW}, {DIP, RW}, {SPORT, R}, {DPORT, R}});
+    vnfPktInfo[4] = new pktFields({{SIP, R}, {SIP, W},{DIP, R},{DIP, W}, {SPORT, R}, {DPORT, R}});
     vnfPktInfo[5] = new pktFields({{SIP,     R}, {SPORT,   R}, {Payload, R}});
-    vnfPktInfo[6] = new pktFields({{SIP,     R}, {DIP,     R}, {Payload, RW}, {AddRm,   T}});
-    vnfPktInfo[7] = new pktFields({{SIP,   RW},  {DIP,   RW}, {SPORT, RW}, {DPORT, RW}});
-    vnfPktInfo[8] = new pktFields({{SIP, RW}, {DIP, RW}});
-    vnfPktInfo[9] = new pktFields({{Payload, RW}});
+    vnfPktInfo[6] = new pktFields({{SIP,     R}, {DIP,     R}, {Payload, R},{Payload, W}, {AddRm,   AddRm}});
+    vnfPktInfo[7] = new pktFields({{SIP,   R},{SIP,   W},  {DIP,   R},{DIP,   W}, {SPORT, R},{SPORT, W}, {DPORT, R},{DPORT, W}});
+    vnfPktInfo[8] = new pktFields({{SIP, R}, {DIP, R},{SIP, W}, {DIP, W}});
+    vnfPktInfo[9] = new pktFields({{Payload, R},{Payload, W}});
     vnfPktInfo[10] = new pktFields({});
     vnfPktInfo[11] = new pktFields({{SIP,   R}, {DIP,   R}, {SPORT, R}, {DPORT, R}});
     vnfPktInfo[12] = new pktFields({{SIP,   R}, {DIP,   W}, {SPORT, R}, {DPORT, W}});
@@ -107,22 +122,34 @@ void VirtualNetworkFunctions::Algorithm_NF_Parallelism_Identification(){
             if(i_vnf==j_vnf)continue; // same vnf id
             bool canBeParallelized = true;
             // for each field in packet 1
+            int conflicting_actions = 0;
             for(auto &[al1_field_name, al1_field_val]:  vnfPktInfo[i_vnf]->info){
-                // if field exist in 2nd packet
-                if(vnfPktInfo[j_vnf]->info.count(al1_field_name)){
-                    int al2_field_val = vnfPktInfo[j_vnf]->info[al1_field_name];
-                        switch (DepTable[al1_field_val][al2_field_val]) {
-                            case NOT_PARALLELIZABLE: canBeParallelized = false; break;
-                            case PARALLELIZABLE_NO_COPY: continue;
-                            case PARALLELIZABLE_WITH_COPY:
-                                canBeParallelized = false; break;
-                                break;
-                        }
+                for(auto &[al2_field_name, al2_field_val]:  vnfPktInfo[j_vnf]->info) {
+
+                    if((al1_field_val == R and  al2_field_val == W) or (al1_field_val == W and  al2_field_val == W)){
+                        if(al1_field_name == al2_field_name)
+                            conflicting_actions++;
+                        continue; //canBeParallelized unchanged
+                    }
+                    // if field exist in 2nd packet
+                    switch (DepTable[al1_field_val][al2_field_val]) {
+                        case NOT_PARALLELIZABLE:
+                            canBeParallelized = false;
+                            break;
+                        case PARALLELIZABLE_NO_COPY:  //do nothing
+                            break;
+                        case PARALLELIZABLE_WITH_COPY:
+                            conflicting_actions++;
+                            break;
+                    }
+                    if(!canBeParallelized) break;
                 }
                 if(!canBeParallelized) break;
             } // foreach
-            if(canBeParallelized)cnt++;
-            cout<<"\n"<<cnt<<"["<<i_vnf<<":"<<j_vnf<<"] : canBeParallelized:"<<canBeParallelized;
+            if(canBeParallelized){
+                cnt++;
+                cout<<"\n"<<cnt<<"["<<i_vnf<<":"<<j_vnf<<"] : canBeParallelized:"<<canBeParallelized<< " : "<<conflicting_actions;
+            }
         }// for j
     }// for i
 }

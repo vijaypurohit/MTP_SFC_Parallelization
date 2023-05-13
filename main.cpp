@@ -30,90 +30,132 @@ int debug = 1;
 #include "Algorithms.h" ///< algorithms implemented
 #include "Tests.h" ///< Simulation Test implemented
 
-
-int main()
-{
+/*!
+ * init
+ */
+bool init(){ //init
     /// Run this if SFC Len is going to be more than 10
     if(maxSFCLength > 10){
         integerCompositionsEnumeration(int(integerCompositions.size()),maxSFCLength);
         find_all_nCk(int(nCk.size()), maxSFCLength);
     }
 
-    std::cout<<"\n~~~~~~~~~~~~~~~~~~~ [ Delay-Aware Optimal Parallelization of SFC ] ~~~~~~~~~~~~~~~~~~~~~~~~";
+    std::cout<<"\nInput Directories:  ";
+    for(const auto & di : std::filesystem::directory_iterator(input_directory)){  if(di.is_directory()) cout<<di.path().stem()<<",  ";  }
 
-    std::cout<<"\nInput Directories: ";
-    for(const auto & di : std::filesystem::directory_iterator(input_directory)){
-        if(di.is_directory()) cout<<"\n\t"<<di.path().stem();
-    }
+    const vector<std::string> delay_settings = {"PTF", "PFT", "TPF", "TFP", "FTP", "FPT"};
+    std::cout<<"\n Delay Settings: ";
+    for(int id=0; id<delay_settings.size(); id++){  cout<<"("<<id<<": "<<delay_settings[id]<<") "; }
 
-    const vector<std::string> allSimulationName = {"Basic", "VaryingDeploymentParameter", "ExecutionTimeComaprison", "ExecutionTimeComparisonWithFixedLength"};
+    const vector<std::string> allSimulationName = {"Basic", "VaryingDeploymentParameter", "ImpactOfChainLength", "ImpactOfFixedChainLength", "ImpactOfNumberOfInstancesPerServer", "ImpactOfHeterogeneousDelays", "ImpactOfVariousDelays"};
     std::cout<<"\n\n id | SimulationName";
-    for(int id=0; id<allSimulationName.size(); id++){
-        cout<<"\n  "<<id<<": "<<allSimulationName[id];
-    }
+    for(int id=0; id<allSimulationName.size(); id++){  cout<<"\n  "<<id<<": "<<allSimulationName[id]; }
 
 
     string dirname;  cout<<"\n\nEnter Directory Name (network file should be present as \"network_{DirectoryName}.txt\"): "; cin>>dirname;
-    int asid; cout<<"\nEnter Simulation Id: "; cin>>asid;
+    int asid=-1;            cout<<"\nEnter Simulation Id: "; cin>>asid;
+    int setting_id = -1;    cout<<"\nEnter Delay Settings Id: "; cin>>setting_id;
+    pair<type_delay, type_delay> funExeTimeRange;
 
-
-    if(asid == 0)
-    {
-        ifRejectSFC = false;
-        packetBodySize = 1000; packetHeaderSize = 24; factor_packet = 8;
-        bandwidthNW = 1; factor_bandwidth = 1000;
-
-        speedOfLight = 300000; velocityFactor = 1.0;
-        read_write_time_per_bit = 0.077e-2;
-
-        const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"_B.txt";
-        GenerateRandomVNFs(maxNumVNFs, {1.5,3.2}, {2.0,4.1}, dirname+"/" , fileVNF);
-        SimulationTest_Basic(allSimulationName[asid], dirname, "network_"+dirname+".txt", fileVNF, "SFC10_L_R_B.txt", {60,0},"asc_length");
+    if(asid<0 or asid>allSimulationName.size() or setting_id<0 or setting_id>delay_settings.size() or dirname.empty()){
+        cerr<<"\n Invalid inputs.";
+        return false;
     }
 
-    if(asid == 1)
-    {
-        ifRejectSFC = false;
-        packetBodySize = 1000; packetHeaderSize = 24; factor_packet = 8;
-        bandwidthNW = 1; factor_bandwidth = 1000;
+    if(setDelayParameterSettings(setting_id, funExeTimeRange) == false)
+        return false;
+//    ifRejectSFC = true;
+//    speedOfLight = 300000; velocityFactor = 1.0;
+    const string& networkFileName = "network_"+dirname+".txt";
+    const string& fileVNF = "VNF"+to_string(maxNumVNFs)+".txt";
+    GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
 
-        speedOfLight = 300000; velocityFactor = 1.0;
-        read_write_time_per_bit = 0.077e-2;
-
-        const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"_VDP.txt";
-        GenerateRandomVNFs(maxNumVNFs, {1.5,3.2}, {2.0,4.1}, dirname+"/" , fileVNF);
-//        SimulationTest_VaryingNetworkVNF_DeploymentParameter(allSimulationName[asid], dirname, "network_"+dirname+".txt", fileVNF, "SFC10_L_R_VDP.txt", {60,2},"asc_length");
+    switch (asid) {
+        case 0: //Basic
+            ifRejectSFC = true;
+            return SimulationTest_Basic(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF, "SFC10_L_R_B.txt", {60,0});
+            break;
+        case 1: //VaryingDeploymentParameter
+            return SimulationTest_VaryingNetworkVNF_DeploymentParameter(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF, "SFC10_L_R_VDP.txt");
+            break;
+        case 2:  //ImpactOfChainLength
+                SimulationTest_ImpactOfChainLength(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
+        case 3: //ImpactOfFixedChainLength
+            return SimulationTest_FixedChainLength(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
+            break;
+        case 4: //ImpactOfNumberOfInstancesPerServer
+            return SimulationTest_ImpactOfNumberOfInstancesPerServer(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
+            break;
+        case 5: //ImpactOfHeterogeneousDelays
+            return SimulationTest_ImpactOfHeterogeneousDelays(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
+            break;
+        default:
+            return SimulationTest_ImpactOfVariousDelays(allSimulationName[asid], dirname, networkFileName);
+            return false;
     }
+  return false;
+}//init
 
-    if(asid == 2)
-    {
-        ifRejectSFC = false;
-        packetBodySize = 1000; packetHeaderSize = 24; factor_packet = 8; /// 1000+24B * 8 = bits
-        read_write_time_per_bit = 0.077e-2; /// for packet processing.
+bool AutomateForEachDirectory(){
 
-        bandwidthNW = 1; factor_bandwidth = 1000; /// 1Mb/ms
-        speedOfLight = 300000; velocityFactor = 1.0; ///
+    for(const string& dirname : {"NewYork"}){
 
-        const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"_ETC.txt";
-        GenerateRandomVNFs(maxNumVNFs, {1.5,3.2}, {2.0,4.1}, dirname+"/" , fileVNF);
-        SimulationTest_ExecutionTimeComparison(allSimulationName[asid], dirname, "network_"+dirname+".txt", fileVNF, {55, 2}, "asc_length");
-//        SimulationTest_ExecutionTimeComparisonSameDeployement(allSimulationName[asid], dirname, "network-"+dirname+".txt", fileVNF, "SFC20_L_10_ETC.txt", {55, 2}, "asc_length");
+        const string& networkFileName = "network_"+dirname+".txt";
+
+        cout<<"\n"<<"ImpactOfVariousDelays_setid_"<<(0);
+        SimulationTest_ImpactOfVariousDelays("ImpactOfVariousDelays_setid_", dirname, networkFileName);
+
+        for(const int setting_id: {0,1,2,3,4,5}){
+            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"ihd.txt";
+            pair<type_delay, type_delay> funExeTimeRange;
+            setDelayParameterSettings(setting_id, funExeTimeRange);
+            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
+            cout<<"\n"<<"ImpactOfHeterogeneousDelays_setid_"<<(setting_id);
+            SimulationTest_ImpactOfHeterogeneousDelays("ImpactOfHeterogeneousDelays_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF, {55,1});
+            remove((input_directory+dirname+"/"+fileVNF).c_str());
+        }
+        for(const int setting_id: {0,1,2,3,4,5}){
+            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"nips.txt";
+            pair<type_delay, type_delay> funExeTimeRange;
+            setDelayParameterSettings(setting_id, funExeTimeRange);
+            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
+            cout<<"\n"<<"ImpactOfNumberOfInstancesPerServer_setid_"<<(setting_id);
+            SimulationTest_ImpactOfNumberOfInstancesPerServer("ImpactOfNumberOfInstancesPerServer_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF, {55,1});
+            remove((input_directory+dirname+"/"+fileVNF).c_str());
+        }
+
+        if(dirname == "NewYork"){
+            cout<<"\n"<<"SameChainsHeterogeneousDelaysImpactOfNumberOfInstances"<<(0);
+            SimulationTest_SameChainsHeterogeneousDelaysImpactOfNumberOfInstancesPerServer(dirname);
+
+            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"len.txt";
+            pair<type_delay, type_delay> funExeTimeRange;
+            setDelayParameterSettings(6, funExeTimeRange);
+            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
+            SimulationTest_ImpactOfChainLength("ImpactOfChainLength_setid_"+to_string(6), dirname, networkFileName, fileVNF);
+            SimulationTest_FixedChainLength("ImpactOfFixedChainLength_setid_"+to_string(6), dirname, networkFileName, fileVNF);
+            remove((input_directory+dirname+"/"+fileVNF).c_str());
+        }
+    } //for directory listing
+
+    return true;
+}
+
+int main()
+{
+    std::cout<<"\n~~~~~~~~~~~~~~~~~~~ [ Delay-Aware Optimal Parallelization of SFC ] ~~~~~~~~~~~~~~~~~~~~~~~~";
+
+
+int id; cout<<"\n"<<"1. For Individual Testing. \n2. Automate for directories."; cin>>id;
+if(id == 1){
+    if(init() == false){
+        return 1;
     }
+}else if(id == 2){
+    AutomateForEachDirectory();
+}
 
-    if(asid == 3)
-    {
-        ifRejectSFC = false;
-        packetBodySize = 1000; packetHeaderSize = 24; factor_packet = 8; /// 1000+24B * 8 = bits
-        read_write_time_per_bit = 0.077e-2; /// for packet processing.
-
-        bandwidthNW = 1; factor_bandwidth = 1000; /// 1Mb/ms
-        speedOfLight = 300000; velocityFactor = 1.0; ///
-
-        const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"_ETCFL.txt";
-        GenerateRandomVNFs(maxNumVNFs, {1.5,3.2}, {2.0,4.1}, dirname+"/" , fileVNF);
-        SimulationTest_ExecutionTimeComparisonWithFixedLength(allSimulationName[asid], dirname, "network_"+dirname+".txt", fileVNF, {55, 2}, "asc_length");
-    }
-
+    cout<<"\n\nsuccess. press any key to exit";
     cout << "\n\n~~~~~~~~~~~~~~~~~~~ [ Ending Program ] ~~~~~~~~~~~~~~~~~~~~~~~~";
     return 0;
 }

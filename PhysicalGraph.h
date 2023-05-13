@@ -77,8 +77,31 @@ public:
     void calcAllPairsShortestPath();
     vector<unsigned int> constructShortestPath(const unsigned int &FromSrc, const unsigned int &ToDst);
     bool calcClusteringCoefficient(bool);
+
+    void setNodesCores(const pair<string, unsigned int> &CoresOpt);
 };
 
+void PhysicalGraph::setNodesCores(const pair<string, unsigned int>& CoresOpt = {"fixed-all", 3}){
+    auto coresAssignmentLogic = [&](const unsigned int& deg) -> unsigned int{
+        if(CoresOpt.first == "node-degree")
+            return deg;
+        else if(CoresOpt.first == "fixed-all"){
+            return CoresOpt.second;
+        }else if(CoresOpt.first == "variable-all"){
+            if(deg == 1) return deg;
+            else if(deg <= 5) return 2;
+            else if(deg <= 9) return 4;
+            else return CoresOpt.second;
+        }
+        else return 2;
+    };
+    sum_cores = 0;
+    for (auto& pnInfo: PNode){
+        unsigned int num_cores = coresAssignmentLogic(pnInfo.second.capacity.cores);
+        pnInfo.second.capacity.cores = num_cores;
+        sum_cores += num_cores;
+    }
+}
 
 /*!  Show Network Adjacency Matrix in console.*/
 void PhysicalGraph::showAdjMatrix() const{

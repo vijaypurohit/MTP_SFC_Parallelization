@@ -27,7 +27,7 @@
  */
 void integerCompositionsEnumeration(unsigned int k, unsigned int K, bool showInConsole=false) {
     if(k>K) return;
-    if(integerCompositions.find(k - 1) == integerCompositions.end()){
+    if(k>=1 and integerCompositions.find(k - 1) == integerCompositions.end()){
         string errorMsg = "Previous Cluster size k-1="+to_string(k-1)+ " does not exist. Caclculate that first. Function: ";
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
@@ -1094,6 +1094,7 @@ void Heuristic_kShortestPath_InstanceMapping(Simulations& SimTest) {//Heuristic_
 
         SimTest.TestsResult[name_kshortestpath].sfcsol[cSFC.index] = SFC_RESULT(); ///< solution for the layer graph algorithm
         auto sfc_st = std::chrono::steady_clock::now();
+        SimTest.vnfDelays.clear();
         for(const unsigned int& fn: cSFC.vnfSeq){ /// finding some vnf delays
             const VNFNode& dstVNFNode = SimTest.VNFNetwork.VNFNodes.at(fn );
             SimTest.vnfDelays[fn].prcDelay = calcD_MeanProcessingDelayVNF(dstVNFNode);

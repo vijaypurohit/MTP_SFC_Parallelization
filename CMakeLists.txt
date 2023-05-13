@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 #include_directories(.)
 
-add_executable(SFC_Parallelization main.cpp )
+add_executable(SFC_Parallelization main.cpp)
 
 #find_package(OpenMP)
 #if (OPENMP_FOUND)

@@ -36,11 +36,29 @@ bool createDirectory(const string& fullDirName){
  * @param dirName name of the directory inside which it contains network file.
  * @param filename_network network data filepath from where we have to read network
  * @param graph PhysicalGraph class pointer variable to save the graph values.
+ * @param CoresOpt number of cores in each node. \n
+ * {"node-degree", 0} -> according to node degree it will fixed cores \n
+ * {"fixed-all", val} -> fixe each node core to value = val \n
+ * {"variable-all", maxval} -> scale according to node degree with maxval \n
  * @param showinConsole show reading values in the console to debug.
  */
-bool readNetwork(const std::string& dirName, const std::string& filename_network, PhysicalGraph& graph, bool showinConsole=false)
+bool readNetwork(const std::string& dirName, const std::string& filename_network, PhysicalGraph& graph, const pair<string, unsigned int>& CoresOpt = {"fixed-all", 3}, bool showinConsole=false)
 {//readNetwork
-    std::cout.precision( numeric_limits<double>::digits10  );
+    if(showMorePrecision) std::cout.precision( numeric_limits<double>::digits10  );
+
+//    auto coresAssignmentLogic = [&](const unsigned int& deg) -> unsigned int{
+//        if(CoresOpt.first == "node-degree")
+//            return deg;
+//        else if(CoresOpt.first == "fixed-all"){
+//            return CoresOpt.second;
+//        }else if(CoresOpt.first == "variable-all"){
+//            if(deg == 1) return deg;
+//            else if(deg <= 5) return 2;
+//            else if(deg <= 9) return 4;
+//            else return CoresOpt.second;
+//        }
+//        else return 2;
+//    };
 
     ifstream fin;
     string filepathExt = input_directory + dirName + filename_network;
@@ -59,21 +77,23 @@ bool readNetwork(const std::string& dirName, const std::string& filename_network
     if(fin>>iG_nNodes>>edgesReadingAs and iG_nNodes){
         graph = std::move(PhysicalGraph(iG_nNodes,iG_nEdges));
 
-        unsigned int readNode_idx, readNodeCap_cores;
+        unsigned int readNode_idx, readNodeCap_deg;
         unsigned int ns=0; /// number of servers
         fin>>ns;
         for(int pi=1; pi<=ns; pi++) {
-            if(!(fin>>readNode_idx>>readNodeCap_cores)){
+            if(!(fin>>readNode_idx>>readNodeCap_deg)){
                 std::cerr << "\t Server Reading Failed.\n";
                 return false;
             }
+//            unsigned int num_cores = coresAssignmentLogic(readNodeCap_deg);
             string readNode_name = "PN"+to_string(readNode_idx);
-            graph.PNode[readNode_idx] = PhysicalNode(readNode_idx, readNode_name, NodeCapacity(readNodeCap_cores));
-            graph.sum_cores += readNodeCap_cores; ///< summation of all cores in the network
-            if(showinConsole)cout<<readNode_idx<<"-"<<readNode_name<<"-"<<readNodeCap_cores<<endl;
+            graph.PNode[readNode_idx] = PhysicalNode(readNode_idx, readNode_name, NodeCapacity(readNodeCap_deg));
+            graph.sum_cores += readNodeCap_deg; ///< summation of all cores in the network
+            if(showinConsole)cout<<readNode_idx<<"-"<<readNode_name<<"-"<<readNodeCap_deg<<endl;
         }
 
         unsigned int ne=0;/// number of edges
+//        type_wgt minwgt = std::numeric_limits<type_wgt>::max(), maxwgt = std::numeric_limits<type_wgt>::min();
         if(edgesReadingAs == 'L'){ ///Reading Adj List.
             while(!fin.eof()) {
                 if(!(fin>>readEdge_u>>readEdge_v>>readEdge_wgt)){
@@ -83,9 +103,12 @@ bool readNetwork(const std::string& dirName, const std::string& filename_network
                 graph.mat[readEdge_u][readEdge_v] = graph.mat[readEdge_v][readEdge_u] = readEdge_wgt;
                 graph.PNode[readEdge_u].neighbours.insert(readEdge_v);
                 graph.PNode[readEdge_v].neighbours.insert(readEdge_u);
+
+//                minwgt = min(minwgt, readEdge_wgt);
+//                maxwgt = max(maxwgt, readEdge_wgt);
                 if(showinConsole)cout<<"("<<readEdge_u<<","<<readEdge_v<<")d="<<readEdge_wgt<<endl;
             }
-        }else if(edgesReadingAs == 'M'){ // Reading Adj Matrix
+        } else if(edgesReadingAs == 'M'){ // Reading Adj Matrix
             for(unsigned int src=graph.srcV; src<=iG_nNodes; src++){
                 for(unsigned int dst=graph.srcV; dst<=iG_nNodes; dst++){
                     if(!(fin>>readEdge_wgt)){
@@ -96,14 +119,15 @@ bool readNetwork(const std::string& dirName, const std::string& filename_network
                         ++ne;
                         graph.mat[src][dst] = readEdge_wgt;
                         graph.PNode[src].neighbours.insert(dst);
+                        if(showinConsole)cout<<"("<<readEdge_u<<","<<readEdge_v<<")d="<<readEdge_wgt<<endl;
                     }
-                    if(showinConsole)cout<<"("<<readEdge_u<<","<<readEdge_v<<")d="<<readEdge_wgt<<endl;
                 }//dst
             }//src
             ne = ne/2; //undirected graph each edge counted twice.
         }else return false;
         graph.setNumOfEdges(ne); ///< set number of edges.
         if(debug){ cout<<"\tG("<<iG_nNodes<<","<<ne<<") | Servers: "<<ns; }
+//        cout<<"\n minwgt:"<<minwgt<<" maxwgt:"<<maxwgt<<";";
     } else{
         string errorMsg = "Invalid Input Values V and M/L. File "+filepathExt+ ". Function: ";
         throw runtime_error(errorMsg+ __FUNCTION__);
@@ -112,6 +136,7 @@ bool readNetwork(const std::string& dirName, const std::string& filename_network
     graph.filename_network = filename_network.substr(0,filename_network.find('.'));
     graph.calcClusteringCoefficient();
     graph.calcAllPairsShortestPath();
+    graph.setNodesCores(CoresOpt);
     return true;
 }//readNetwork
 
@@ -150,13 +175,14 @@ bool readVirtualNetworkFunctions(const std::string& dirName, const std::string& 
             allVNFs.VNFNodes[readVNF_idx] = VNFNode(readVNF_idx, readVNF_name, readVNF_serviceR, readVNF_execTime,NodeCapacity(readVNF_Req_cores) );
             if(showinConsole)cout<<readVNF_idx<<"-"<<readVNF_name<<"-"<<readVNF_serviceR<<"-"<<readVNF_execTime<<"-["<<readVNF_Req_cores<<"]"<<endl;
         }
-        if(debug)cout<<"\tVNFs:"<<i_nVNF;
+
     }else{
         string errorMsg = "Invalid Input File Values. File "+filepathExt+ ". Function: ";
         throw runtime_error(errorMsg+ __FUNCTION__);
     }
     fin.close();
     allVNFs.filename_vnf = filename_vnf.substr(0,filename_vnf.find('.'));
+    if(debug)cout<<"\tVNFs:"<<i_nVNF<<" ("<<allVNFs.filename_vnf<<")";
     return true;
 }
 

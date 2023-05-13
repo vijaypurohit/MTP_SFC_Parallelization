@@ -13,6 +13,9 @@ public:
     PhysicalGraph PhysicalNetwork; ///< Graph Object contains network related functions
     VirtualNetworkFunctions VNFNetwork; ///< VNF Object contains VNF (Virtual Network Function) related code.
 
+    //network
+    unordered_map<unsigned int, Bin<unsigned int>> nodesToDeploy;
+
     /// SFC Related
     string filename_sfc{};///< name of the file from where SFCs are read;
 //    unordered_map<unsigned int, unsigned int> sfcIndex_2_arrIndex;
@@ -430,6 +433,7 @@ void Simulations::findAllPartialSFC_Backtrack(unsigned int cur_level_idx, unorde
  * @param[in] csfc SFC object whose fully parallel version we have to find.
  */
 void Simulations::convert_SeqSFC_to_FullParallel(ServiceFunctionChain& csfc){//convert_SeqSFC_to_FullParallel
+    csfc.vnfBlocksPar.clear();
     const unsigned int& SZ = csfc.vnfSeq.size(); // total vnfs including src and dest
 
     unsigned int cid=0;
@@ -464,6 +468,7 @@ void Simulations::convert_SeqSFC_to_FullParallel(ServiceFunctionChain& csfc){//c
  * {[1], [2,1,1]} is mapped to {[f1], [f2,f3,f4,f4]} such that [ 1-c combination of f1 ]-> [2-c combination of f2,f3,f4,f5] -> [1-c combination of f2,f3,f4,f5] -> [1-c combination of f2,f3,f4,f5] \n
  */
 void Simulations::convert_fullParVNFBlk_to_AllPartialChains(ServiceFunctionChain& csfc, const int& showInConsole){
+    csfc.allPartParSFC.clear();
     const vector<vector<unsigned int>>& fullParVNFBlocks = csfc.vnfBlocksPar;
     const unsigned int& nBlk = fullParVNFBlocks.size(); ///< number of blocks of the fully parallel SFC, (including src and dst block)
 //    const vector<vector<unsigned int>> SK = { {1,  2,1,1},{1, 2,2}, {1,4}, {2,2,1}, {3,1,1} };
@@ -564,8 +569,8 @@ vector<unsigned int> Simulations::findParallelSubset(const unsigned int& seqid, 
  * where cluster_i {1,2} means in level[0] only one function runs, level[1] = check 2 functions can run together. if it so than it is one of the parallel chain.
  */
 void Simulations::convert_SeqSFC_to_SubsetPartialChains(ServiceFunctionChain& csfc, const int& showInConsole){//convert_SeqSFC_to_SubsetPartialChains
+    csfc.subsetPartParSFC.clear();
     vector<vector<vector<unsigned int>>>& subsetPartParSFC = csfc.subsetPartParSFC;
-
     for(const vector<unsigned int>& cluster: integerCompositions[csfc.vnfSeq.size()]){ /// how we can arrange the seq sfc
         vector<vector<unsigned int>>partSFC; ///< partial sfc in current iteration
         unsigned int vnfdone = 0; ///< in a vnfSeq how many functions are completed from start
@@ -634,6 +639,24 @@ bool Simulations::findRandomParallelPairs(const float& threshold, int option){
                     {12,{{6,pktCopy},{3,pktCopy},{9,pktNoCopy},{8,pktNoCopy},{7,pktCopy}}}
             };
         }//50
+        else if(threshold <= 55){
+            numParallelPairs = 66;
+            totalPairs = 120;
+            parallelPairs={
+                    {1,{{7,pktNoCopy}, {6,pktCopy}, {8,pktNoCopy}, {12,pktNoCopy}, {2,pktNoCopy}, {4,pktNoCopy}, {10,pktNoCopy}, {9,pktNoCopy}, {11,pktCopy}}},
+                    {2,{{3,pktCopy}, {10,pktCopy}}},
+                    {3,{{1,pktCopy}, {12,pktNoCopy}, {4,pktCopy}, {9,pktNoCopy}, {5,pktCopy}, {2,pktCopy}}},
+                    {4,{{9,pktCopy}, {2,pktCopy}, {6,pktNoCopy}, {5,pktCopy}, {11,pktCopy}, {7,pktCopy}, {3,pktNoCopy}, {10,pktCopy}}},
+                    {5,{{8,pktNoCopy}, {9,pktNoCopy}, {4,pktCopy}, {3,pktCopy}, {10,pktNoCopy}}},
+                    {6,{{10,pktNoCopy}, {3,pktCopy}, {5,pktCopy}, {2,pktNoCopy}, {11,pktCopy}, {12,pktNoCopy}}},
+                    {7,{{11,pktCopy}, {12,pktCopy}, {9,pktCopy}, {8,pktCopy}, {10,pktNoCopy}, {6,pktNoCopy}, {2,pktCopy}}},
+                    {8,{{4,pktNoCopy}, {11,pktNoCopy}, {5,pktNoCopy}, {3,pktNoCopy}, {9,pktNoCopy}, {10,pktNoCopy}, {7,pktCopy}}},
+                    {9,{{5,pktCopy}, {1,pktNoCopy}, {3,pktCopy}, {12,pktNoCopy}, {4,pktCopy}, {7,pktNoCopy}}},
+                    {10,{{9,pktNoCopy}, {8,pktCopy}, {1,pktCopy}, {2,pktCopy}, {11,pktCopy}}},
+                    {11,{{5,pktCopy}, {1,pktNoCopy}, {3,pktCopy}}},
+                    {12,{{4,pktCopy}, {9,pktNoCopy}}}
+            };
+        }
         else if (threshold <= 60){
                 numParallelPairs = 72;
                 totalPairs = 120;
@@ -780,6 +803,7 @@ bool Simulations::DeploymentVNF_ScoreMethod(const float& fnInstScalingFactor, co
     finalInstancesCount.clear();
     PN_2_VNF.clear();
     I_VNFINST_2_PN.clear();
+    nodesToDeploy.clear();
 
     const unsigned int& numVNFs = VNFNetwork.numVNF;
     const unsigned int& numPNs =  PhysicalNetwork.numV;
@@ -953,7 +977,6 @@ bool Simulations::DeploymentVNF_ScoreMethod(const float& fnInstScalingFactor, co
 
 //// DEPLOYMENT
     unsigned int totalInstDeployed = 0, totalCoresUsed = 0;
-    unordered_map<unsigned int, Bin<unsigned int>> nodesToDeploy;
     for(unsigned int p = PhysicalNetwork.srcV; p<=numPNs; p++){
         nodesToDeploy[p] = Bin<unsigned int>(PhysicalNetwork.PNode[p].capacity.cores);
     }

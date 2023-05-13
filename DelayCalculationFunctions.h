@@ -5,7 +5,6 @@
 #ifndef SFC_PARALLELIZATION_DELAYCALCULATIONFUNCTIONS_H
 #define SFC_PARALLELIZATION_DELAYCALCULATIONFUNCTIONS_H
 
-
 /*! Calculate Transmission delay between two Physical Nodes n1 and n2
  * (amount of time required to push all the packet's bits into the wire) \n
  * Right now bandwidth in all links is assumed to be same and defined in global variable. \n
@@ -20,6 +19,9 @@
  *  @future packet size can be variable according to each SFC.
  */
 type_delay calcD_TransmissionDelay(){
+    if(fixTx){
+        return fixTxVal;
+    }
     const auto& bandwidth_n1_n2 = (type_delay)bandwidthNW * factor_bandwidth; // in Mb/s
     const auto& packetsize_n1_n2 = (type_delay)(packetBodySize + packetHeaderSize)*factor_packet; // in bits
     return packetsize_n1_n2/(bandwidth_n1_n2);
@@ -65,11 +67,7 @@ type_delay calcD_QueuingDelay( const type_delay& cSFCArrivalRate, const VNFNode&
 
     if(lambda >= mu_f){// otherwise queuing delay will be negative
         return lambda/mu_f ; ///< utne factor me delay maximise kr do
-//        return std::numeric_limits<type_delay>::max();  // we want to punish this mapping such that with this mapping time is maximum
     }
-//    else if(lambda == mu_f){// otherwise queuing delay will be infinite,but we can still maximise it to 100% utilization
-//        return 1;  //
-//    }
     return (lambda / (mu_f * (mu_f - lambda)));
 }
 
