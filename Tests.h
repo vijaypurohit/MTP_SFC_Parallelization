@@ -122,7 +122,7 @@ bool SimulationTest_Basic(const string& testname, const string& dirname, const s
 }//SimulationTest_VaryingNetworkVNF_DeploymentParameter
 
 /*! Based on samet of SFC, vary the VNF deployment parameters */
-bool SimulationTest_VaryingNetworkVNF_DeploymentParameter(const string& testname, const string& dirname, const string& fileNetwork, const string& fileVNF, const string& fileSFC, const pair<float, int>& parallelPairsOption = parallelPairsOpt, const string& sfc_sort_opt= "asc_length"){//SimulationTest_VaryingNetworkVNF_DeploymentParameter
+bool SimulationTest_VaryingNetworkVNF_DeploymentParameter(const string& testname, const string& dirname, const string& fileNetwork, const string& fileVNF, const pair<float, int>& parallelPairsOption = parallelPairsOpt, const string& sfc_sort_opt= "asc_length"){//SimulationTest_VaryingNetworkVNF_DeploymentParameter
 
     Simulations simtest(testname,dirname);
 
@@ -131,6 +131,8 @@ bool SimulationTest_VaryingNetworkVNF_DeploymentParameter(const string& testname
     simtest.findRandomParallelPairs(parallelPairsOption.first,parallelPairsOption.second); /// based on VNFs
 
     unsigned int numOfSFCsNeeded = setnumOfSFCsNeeded(simtest.PhysicalNetwork.numV);
+
+    const string& fileSFC = "SFC"+to_string(numOfSFCsNeeded)+"_R_B.txt";
 
     GenerateRandomSFCs(simtest.PhysicalNetwork.numV, simtest.VNFNetwork.numVNF, numOfSFCsNeeded, sfcArrivalRateRange, {false, 0}, simtest.fullDirName, fileSFC);
     simtest.readGenericServiceFunctionsChains(fileSFC, sfc_sort_opt);
@@ -146,8 +148,9 @@ bool SimulationTest_VaryingNetworkVNF_DeploymentParameter(const string& testname
     int obs=1;
     for( const float& scale: {0.25f,0.5f,0.75f,1.0f} ){
         for(const float& alpha: {0.25f,0.5f,0.75f}){
-            for(const int& pxs: {1,2}){
-                for(const int& dist: {1,2}){
+//            for(const int& pxs: {1,2}){
+//                for(const int& dist: {1,2}){
+                    int pxs = 1, dist=1;
                     string other = to_string(scale)+"_"+to_string(alpha)+"_"+to_string(pxs)+"_"+to_string(dist);
                     cout<<"\n[parameters: "<<other<<"]------------";
 
@@ -168,8 +171,8 @@ bool SimulationTest_VaryingNetworkVNF_DeploymentParameter(const string& testname
                     }else{ simtest.writeInFileSimulationTestResults(obs, ios::app, other);
                     } obs++;
                     system(CLR);
-                }
-            }
+//                }
+//            }
         }
     }
     return true;
@@ -276,6 +279,9 @@ bool SimulationTest_ImpactOfNumberOfInstancesPerServer(const string& testname, c
     int sfclen = 7;
     const string& filesfc = "SFC"+ to_string(numOfSFCsNeeded)+"_L_"+ to_string(sfclen)+"_INIPS.txt";
     GenerateRandomSFCs(simtest.PhysicalNetwork.numV, simtest.VNFNetwork.numVNF, numOfSFCsNeeded, sfcArrivalRateRange, {true, sfclen}, simtest.fullDirName, filesfc);
+
+//    const string& filesfc = "SFC"+ to_string(numOfSFCsNeeded)+"_R_INIPS.txt";
+//    GenerateRandomSFCs(simtest.PhysicalNetwork.numV, simtest.VNFNetwork.numVNF, numOfSFCsNeeded, sfcArrivalRateRange, {false, 0}, simtest.fullDirName, filesfc);
     simtest.readGenericServiceFunctionsChains(filesfc, sfc_sort_opt);
 
     for(ServiceFunctionChain& sfc: simtest.allSFC){
@@ -284,8 +290,9 @@ bool SimulationTest_ImpactOfNumberOfInstancesPerServer(const string& testname, c
         simtest.convert_SeqSFC_to_SubsetPartialChains(sfc);
         sfc.partialParallelChains = &sfc.subsetPartParSFC;
     }if(debug)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
-    simtest.calcLikelihoodOfTwoFunctions(); ///based on parallel pairs and VNFs in SFC
+    simtest.calcLikelihoodOfTwoFunctions(); ///based on pa2rallel pairs and VNFs in SFC
 
+    vector<float> scalingfactor = {0,0.25,0.35, 0.5,0.5 ,0.75 ,1};
     for(int cores=1; cores<=7; cores++){
         cout<<"\n["<<filesfc<<" cores:"<<cores<<"]------------";
 
@@ -506,7 +513,6 @@ bool SimulationTest_ImpactOfVariousDelays(const string& testname, const string& 
     return true;
 }//SimulationTest_ImpactOfFunctionExeDelays
 
-
 bool TestTime_SFCConvertions(){
     const string& fileVNF = "VNF"+to_string(maxNumVNFs)+".txt";
     Simulations simtest("TimeSFCConvertions", "sample0");
@@ -576,4 +582,99 @@ bool TestTime_IntegerComposition(){
     return true;
 }
 
+bool AutomateForEachDirectory(){
+
+    for(const string& dirname : {"NewYork", "India", "Germany", "TA2"}){ //
+
+        const string& networkFileName = "network_"+dirname+".txt";
+
+        cout<<"\n"<<"ImpactOfVariousDelays:";
+        SimulationTest_ImpactOfVariousDelays("ImpactOfVariousDelays_setid_", dirname, networkFileName);
+
+        for(const int setting_id: {0,1,2,3,4,5}){
+            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+".txt";
+            pair<type_delay, type_delay> funExeTimeRange;
+            setDelayParameterSettings(setting_id, funExeTimeRange);
+            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
+
+            cout<<"\n"<<"ImpactOfHeterogeneousDelays_setid_"<<(setting_id);
+            SimulationTest_ImpactOfHeterogeneousDelays("ImpactOfHeterogeneousDelays_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF, {55,0});
+
+            cout<<"\n"<<"ImpactOfNumberOfInstancesPerServer_setid_"<<(setting_id);
+            SimulationTest_ImpactOfNumberOfInstancesPerServer("ImpactOfNumberOfInstancesPerServer_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF,{55,0});
+        }
+
+        if(dirname == "NewYork"){
+            cout<<"\n"<<"SameChainsHeterogeneousDelaysImpactOfNumberOfInstances"<<(0);
+            SimulationTest_SameChainsHeterogeneousDelaysImpactOfNumberOfInstancesPerServer(dirname);
+            for(const int set: {3,5}){
+
+                const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"len.txt";
+                pair<type_delay, type_delay> funExeTimeRange;
+                setDelayParameterSettings(set, funExeTimeRange);
+                GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
+                SimulationTest_ImpactOfChainLength("ImpactOfChainLength_setid_"+to_string(set), dirname, networkFileName, fileVNF, {55,1});
+                SimulationTest_FixedChainLength("ImpactOfFixedChainLength_setid_"+to_string(set), dirname, networkFileName, fileVNF, {55,1});
+            }
+        }
+
+    } //for directory listing
+
+    return true;
+}
+
+
+bool ComparisonWithExistingPPC(const string& testname, const string& dirname, const string& fileNetwork, const string& fileVNF, const pair<float, int>& parallelPairsOption = parallelPairsOpt, const string& sfc_sort_opt= "asc_length"){//SimulationTest_FixedChainLength
+    Simulations simtest(testname, dirname);
+    readNetwork(simtest.fullDirName,fileNetwork,simtest.PhysicalNetwork);/// reading network
+    readVirtualNetworkFunctions(simtest.fullDirName,fileVNF, simtest.VNFNetwork);
+    simtest.findRandomParallelPairs(parallelPairsOption.first, parallelPairsOption.second); /// based on VNFs
+
+    unsigned int numOfSFCsNeeded =  setnumOfSFCsNeeded(simtest.PhysicalNetwork.numV);
+
+    int sfclen = 7;
+    for(int obs=1; obs<=10; obs++){
+        const string& filesfc = "SFC"+ to_string(numOfSFCsNeeded)+"_R_L.txt"; //+to_string(sfclen)
+        cout<<"\n[obs:"<<obs<<": "<<filesfc<<"]------------";
+        GenerateRandomSFCs(simtest.PhysicalNetwork.numV, simtest.VNFNetwork.numVNF, numOfSFCsNeeded, sfcArrivalRateRange, {false, sfclen}, simtest.fullDirName, filesfc);
+        simtest.readGenericServiceFunctionsChains(filesfc, sfc_sort_opt);
+
+        for(ServiceFunctionChain& sfc: simtest.allSFC){
+            simtest.convert_SeqSFC_to_FullParallel(sfc);
+            simtest.convert_fullParVNFBlk_to_AllPartialChains(sfc);
+            simtest.convert_SeqSFC_to_SubsetPartialChains(sfc);
+            sfc.partialParallelChains = &sfc.subsetPartParSFC;
+        } if(debug)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
+        simtest.calcLikelihoodOfTwoFunctions(); ///based on parallel pairs and VNFs in SFC
+        simtest.DeploymentVNF_ScoreMethod(1,0.75,1,1);
+
+        simtest.TestsResult.clear();
+        for(ServiceFunctionChain& sfc: simtest.allSFC){
+            sfc.partialParallelChains = &sfc.allPartParSFC;
+        }
+        simtest.sim_name = testname + "_ppc";
+        try {  bruteForce_InstanceMapping(simtest); }
+        catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+            simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+        }
+        if(obs == 1){ simtest.writeInFileSimulationTestResults(obs, ios::out, filesfc+ " obs:"+to_string(obs));
+        }else{  simtest.writeInFileSimulationTestResults(obs, ios::app, filesfc + " obs:"+to_string(obs));
+        }
+
+        simtest.TestsResult.clear();
+        for(ServiceFunctionChain& sfc: simtest.allSFC){
+            sfc.partialParallelChains = &sfc.subsetPartParSFC;
+        }
+        simtest.sim_name = testname + "_oppc";
+        try {  bruteForce_InstanceMapping(simtest); }
+        catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+            simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+        }
+        if(obs == 1){ simtest.writeInFileSimulationTestResults(obs, ios::out, filesfc+ " obs:"+to_string(obs));
+        }else{  simtest.writeInFileSimulationTestResults(obs, ios::app, filesfc + " obs:"+to_string(obs));
+        }
+        system(CLR);
+    }//sfclen
+    return true;
+}//SimulationTest_FixedChainLength
 #endif //SFC_PARALLELIZATION_TESTS_H

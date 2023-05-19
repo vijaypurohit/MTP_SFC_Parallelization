@@ -47,7 +47,7 @@ bool init(){ //init
     std::cout<<"\n Delay Settings: ";
     for(int id=0; id<delay_settings.size(); id++){  cout<<"("<<id<<": "<<delay_settings[id]<<") "; }
 
-    const vector<std::string> allSimulationName = {"Basic", "VaryingDeploymentParameter", "ImpactOfChainLength", "ImpactOfFixedChainLength", "ImpactOfNumberOfInstancesPerServer", "ImpactOfHeterogeneousDelays", "ImpactOfVariousDelays"};
+    const vector<std::string> allSimulationName = {"Basic", "VaryingDeploymentParameter", "ImpactOfChainLength", "ImpactOfFixedChainLength", "ImpactOfNumberOfInstancesPerServer", "ImpactOfHeterogeneousDelays", "ImpactOfVariousDelays", "ComparisonWithExistingPPC"};
     std::cout<<"\n\n id | SimulationName";
     for(int id=0; id<allSimulationName.size(); id++){  cout<<"\n  "<<id<<": "<<allSimulationName[id]; }
 
@@ -76,7 +76,8 @@ bool init(){ //init
             return SimulationTest_Basic(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF, "SFC10_L_R_B.txt", {60,0});
             break;
         case 1: //VaryingDeploymentParameter
-            return SimulationTest_VaryingNetworkVNF_DeploymentParameter(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF, "SFC10_L_R_VDP.txt");
+             SimulationTest_VaryingNetworkVNF_DeploymentParameter(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
+             SimulationTest_VaryingNetworkVNF_DeploymentParameter(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF, parallelPairsOpt, "dsc_rate");
             break;
         case 2:  //ImpactOfChainLength
                 SimulationTest_ImpactOfChainLength(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
@@ -89,71 +90,31 @@ bool init(){ //init
         case 5: //ImpactOfHeterogeneousDelays
             return SimulationTest_ImpactOfHeterogeneousDelays(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
             break;
-        default:
+        case 6: //ImpactOfHeterogeneousDelays
             return SimulationTest_ImpactOfVariousDelays(allSimulationName[asid], dirname, networkFileName);
+            break;
+        case 7: //ImpactOfHeterogeneousDelays
+            return ComparisonWithExistingPPC(allSimulationName[asid], dirname, networkFileName, fileVNF);
+            break;
+        default:
             return false;
     }
   return false;
 }//init
 
-bool AutomateForEachDirectory(){
 
-    for(const string& dirname : {"NewYork"}){
-
-        const string& networkFileName = "network_"+dirname+".txt";
-
-        cout<<"\n"<<"ImpactOfVariousDelays_setid_"<<(0);
-        SimulationTest_ImpactOfVariousDelays("ImpactOfVariousDelays_setid_", dirname, networkFileName);
-
-        for(const int setting_id: {0,1,2,3,4,5}){
-            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"ihd.txt";
-            pair<type_delay, type_delay> funExeTimeRange;
-            setDelayParameterSettings(setting_id, funExeTimeRange);
-            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
-            cout<<"\n"<<"ImpactOfHeterogeneousDelays_setid_"<<(setting_id);
-            SimulationTest_ImpactOfHeterogeneousDelays("ImpactOfHeterogeneousDelays_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF, {55,1});
-            remove((input_directory+dirname+"/"+fileVNF).c_str());
-        }
-        for(const int setting_id: {0,1,2,3,4,5}){
-            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"nips.txt";
-            pair<type_delay, type_delay> funExeTimeRange;
-            setDelayParameterSettings(setting_id, funExeTimeRange);
-            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
-            cout<<"\n"<<"ImpactOfNumberOfInstancesPerServer_setid_"<<(setting_id);
-            SimulationTest_ImpactOfNumberOfInstancesPerServer("ImpactOfNumberOfInstancesPerServer_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF, {55,1});
-            remove((input_directory+dirname+"/"+fileVNF).c_str());
-        }
-
-        if(dirname == "NewYork"){
-            cout<<"\n"<<"SameChainsHeterogeneousDelaysImpactOfNumberOfInstances"<<(0);
-            SimulationTest_SameChainsHeterogeneousDelaysImpactOfNumberOfInstancesPerServer(dirname);
-
-            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"len.txt";
-            pair<type_delay, type_delay> funExeTimeRange;
-            setDelayParameterSettings(6, funExeTimeRange);
-            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
-            SimulationTest_ImpactOfChainLength("ImpactOfChainLength_setid_"+to_string(6), dirname, networkFileName, fileVNF);
-            SimulationTest_FixedChainLength("ImpactOfFixedChainLength_setid_"+to_string(6), dirname, networkFileName, fileVNF);
-            remove((input_directory+dirname+"/"+fileVNF).c_str());
-        }
-    } //for directory listing
-
-    return true;
-}
 
 int main()
 {
     std::cout<<"\n~~~~~~~~~~~~~~~~~~~ [ Delay-Aware Optimal Parallelization of SFC ] ~~~~~~~~~~~~~~~~~~~~~~~~";
 
 
-int id; cout<<"\n"<<"1. For Individual Testing. \n2. Automate for directories."; cin>>id;
-if(id == 1){
-    if(init() == false){
-        return 1;
+    int id; cout<<"\n"<<"1. For Individual Testing. \n2. Automate for directories."; cin>>id;
+    if(id == 1 and (init() == false)){
+            return 1;
+    }else if(id == 2 ){
+            AutomateForEachDirectory();
     }
-}else if(id == 2){
-    AutomateForEachDirectory();
-}
 
     cout<<"\n\nsuccess. press any key to exit";
     cout << "\n\n~~~~~~~~~~~~~~~~~~~ [ Ending Program ] ~~~~~~~~~~~~~~~~~~~~~~~~";
