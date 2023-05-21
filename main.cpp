@@ -76,8 +76,8 @@ bool init(){ //init
             return SimulationTest_Basic(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF, "SFC10_L_R_B.txt", {60,0});
             break;
         case 1: //VaryingDeploymentParameter
-             SimulationTest_VaryingNetworkVNF_DeploymentParameter(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
-             SimulationTest_VaryingNetworkVNF_DeploymentParameter(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF, parallelPairsOpt, "dsc_rate");
+            SimulationTest_VaryingNetworkVNF_DeploymentParameterComaprisonsBetweenSFCsortting(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF, parallelPairsOpt);
+//            SimulationTest_VaryingNetworkVNF_DeploymentParameter(allSimulationName[asid]+"_"+delay_settings[setting_id]+"asc_length", dirname, networkFileName, fileVNF);
             break;
         case 2:  //ImpactOfChainLength
                 SimulationTest_ImpactOfChainLength(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
@@ -94,7 +94,7 @@ bool init(){ //init
             return SimulationTest_ImpactOfVariousDelays(allSimulationName[asid], dirname, networkFileName);
             break;
         case 7: //ImpactOfHeterogeneousDelays
-            return ComparisonWithExistingPPC(allSimulationName[asid], dirname, networkFileName, fileVNF);
+            return ComparisonWithExistingPPC(allSimulationName[asid]+"_"+delay_settings[setting_id], dirname, networkFileName, fileVNF);
             break;
         default:
             return false;
@@ -102,12 +102,83 @@ bool init(){ //init
   return false;
 }//init
 
+bool AutomateForEachDirectory(){
 
+    for(const string& dirname : {"NewYork", "India", "Germany", "TA2"}){ //
+
+        const string& networkFileName = "network_"+dirname+".txt";
+
+        cout<<"\n"<<"ImpactOfVariousDelays:";
+        SimulationTest_ImpactOfVariousDelays("ImpactOfVariousDelays_setid_", dirname, networkFileName);
+
+        for(const int setting_id: {0,1,2,3,4,5}){
+            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+".txt";
+            pair<type_delay, type_delay> funExeTimeRange;
+            setDelayParameterSettings(setting_id, funExeTimeRange);
+            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
+
+            cout<<"\n"<<"ImpactOfHeterogeneousDelays_setid_"<<(setting_id);
+            SimulationTest_ImpactOfHeterogeneousDelays("ImpactOfHeterogeneousDelays_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF, {55,0});
+
+            cout<<"\n"<<"ImpactOfNumberOfInstancesPerServer_setid_"<<(setting_id);
+            SimulationTest_ImpactOfNumberOfInstancesPerServer("ImpactOfNumberOfInstancesPerServer_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF,{55,0});
+        }
+
+        if(dirname == "NewYork"){
+            cout<<"\n"<<"SameChainsHeterogeneousDelaysImpactOfNumberOfInstances"<<(0);
+            SimulationTest_SameChainsHeterogeneousDelaysImpactOfNumberOfInstancesPerServer(dirname);
+            for(const int set: {3,5}){
+
+                const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"len.txt";
+                pair<type_delay, type_delay> funExeTimeRange;
+                setDelayParameterSettings(set, funExeTimeRange);
+                GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
+                SimulationTest_ImpactOfChainLength("ImpactOfChainLength_setid_"+to_string(set), dirname, networkFileName, fileVNF, {55,1});
+                SimulationTest_FixedChainLength("ImpactOfFixedChainLength_setid_"+to_string(set), dirname, networkFileName, fileVNF, {55,1});
+            }
+        }
+
+    } //for directory listing
+
+    return true;
+}
 
 int main()
 {
     std::cout<<"\n~~~~~~~~~~~~~~~~~~~ [ Delay-Aware Optimal Parallelization of SFC ] ~~~~~~~~~~~~~~~~~~~~~~~~";
 
+//    string dirname = "sample0";
+//    Simulations simtest("forReport", dirname);
+//    const string& fileNetwork = "network_"+dirname+".txt";
+//    const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"_ex.txt";
+//    const string& fileSFC = "SFC10_L_R_ex.txt";
+//    pair<type_delay, type_delay> funExeTimeRange;
+//
+//    setDelayParameterSettings(0, funExeTimeRange);
+//    readNetwork(simtest.fullDirName,fileNetwork, simtest.PhysicalNetwork,{"fixed-all", 2});
+//    GenerateRandomVNFs(4, funServiceRateRange, funExeTimeRange, simtest.fullDirName , fileVNF);
+//
+//    readVirtualNetworkFunctions(simtest.fullDirName, fileVNF, simtest.VNFNetwork);
+//    simtest.findRandomParallelPairs(55,0); /// based on #VNFs
+//
+//    GenerateRandomSFCs(simtest.PhysicalNetwork.numV, simtest.VNFNetwork.numVNF, 20, sfcArrivalRateRange, {true, 4}, simtest.fullDirName, fileSFC);
+//    simtest.readGenericServiceFunctionsChains(fileSFC, "asc_length");
+//
+//    simtest.calcLikelihoodOfTwoFunctions(); ///based on parallel pairs and VNFs in SFC
+//    simtest.DeploymentVNF_ScoreMethod(0.5,0.75,1,1);
+//
+//    simtest.showPNsDescription();
+//    for(ServiceFunctionChain& sfc: simtest.allSFC){
+//        simtest.convert_SeqSFC_to_FullParallel(sfc);
+//        simtest.convert_fullParVNFBlk_to_AllPartialChains(sfc);
+//        simtest.convert_SeqSFC_to_SubsetPartialChains(sfc);
+//        sfc.partialParallelChains = &sfc.subsetPartParSFC;
+//        sfc.showSubsetPartialSFC();
+//    }if(debug)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
+
+
+
+//    return 0;
 
     int id; cout<<"\n"<<"1. For Individual Testing. \n2. Automate for directories."; cin>>id;
     if(id == 1 and (init() == false)){

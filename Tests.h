@@ -91,7 +91,7 @@ bool SimulationTest_Basic(const string& testname, const string& dirname, const s
     readVirtualNetworkFunctions(simtest.fullDirName,fileVNF, simtest.VNFNetwork);
     simtest.findRandomParallelPairs(parallelPairsOption.first,parallelPairsOption.second); /// based on #VNFs
 
-    GenerateRandomSFCs(simtest.PhysicalNetwork.numV, simtest.VNFNetwork.numVNF, 10, {0.3, 0.5}, {false, 0}, simtest.fullDirName, fileSFC);
+    GenerateRandomSFCs(simtest.PhysicalNetwork.numV, simtest.VNFNetwork.numVNF, 10, sfcArrivalRateRange, {false, 0}, simtest.fullDirName, fileSFC);
     simtest.readGenericServiceFunctionsChains(fileSFC, sfc_sort_opt);
 
     simtest.calcLikelihoodOfTwoFunctions(); ///based on parallel pairs and VNFs in SFC
@@ -173,6 +173,118 @@ bool SimulationTest_VaryingNetworkVNF_DeploymentParameter(const string& testname
                     system(CLR);
 //                }
 //            }
+        }
+    }
+    return true;
+}//SimulationTest_VaryingNetworkVNF_DeploymentParameter
+
+/*!
+ *  with same chains, compare vnf deployment by changing sorting order with heuristic
+ */
+bool SimulationTest_VaryingNetworkVNF_DeploymentParameterComaprisonsBetweenSFCsortting(const string& testname, const string& dirname, const string& fileNetwork, const string& fileVNF, const pair<float, int>& parallelPairsOption = parallelPairsOpt){//SimulationTest_VaryingNetworkVNF_DeploymentParameter
+
+    Simulations simtest(testname,dirname);
+
+    readNetwork(simtest.fullDirName,fileNetwork, simtest.PhysicalNetwork);
+    readVirtualNetworkFunctions(simtest.fullDirName,fileVNF, simtest.VNFNetwork);
+    simtest.findRandomParallelPairs(parallelPairsOption.first,parallelPairsOption.second); /// based on VNFs
+
+    unsigned int numOfSFCsNeeded = setnumOfSFCsNeeded(simtest.PhysicalNetwork.numV);
+
+    const string& fileSFC = "SFC"+to_string(numOfSFCsNeeded)+"_R_B.txt";
+
+    GenerateRandomSFCs(simtest.PhysicalNetwork.numV, simtest.VNFNetwork.numVNF, numOfSFCsNeeded, sfcArrivalRateRange, {false, 0}, simtest.fullDirName, fileSFC);
+    simtest.readGenericServiceFunctionsChains(fileSFC, "asc_length");
+    simtest.calcLikelihoodOfTwoFunctions(); ///based on parallel pairs and VNFs in SFC
+
+    for(ServiceFunctionChain& sfc: simtest.allSFC){
+        simtest.convert_SeqSFC_to_FullParallel(sfc);
+        simtest.convert_fullParVNFBlk_to_AllPartialChains(sfc);
+        simtest.convert_SeqSFC_to_SubsetPartialChains(sfc);
+        sfc.partialParallelChains = &sfc.subsetPartParSFC;
+    }if(debug)cout<<"\n\t[SFCs converted to Full Parallel VNFs Blocks]";
+
+    simtest.sim_name = testname + "_asc_length_";
+    int obs=1;
+    for( const float& scale: {0.25f,0.5f,0.75f,1.0f} ){
+        for(const float& alpha: {0.25f,0.5f,0.75f}){
+            int pxs = 1, dist=1;
+            string other = to_string(scale)+"_"+to_string(alpha)+"_"+to_string(pxs)+"_"+to_string(dist);
+            cout<<"\n[parameters: "<<other<<"]------------";
+
+            simtest.DeploymentVNF_ScoreMethod(scale,alpha,pxs,dist);
+
+            simtest.TestsResult.clear();
+            try{  Heuristic_kShortestPath_InstanceMapping(simtest);  }
+            catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+                simtest.showSimulationTestResults(simtest.TestsResult[name_kshortestpath]);
+            }
+
+//            try {  bruteForce_InstanceMapping(simtest); }
+//            catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+//                simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+//            }
+
+            if(obs == 1){  simtest.writeInFileSimulationTestResults(obs, ios::out, other);
+            }else{ simtest.writeInFileSimulationTestResults(obs, ios::app, other);
+            } obs++;
+            system(CLR);
+        }
+    }
+
+    sort(simtest.sortedSFCs.begin(), simtest.sortedSFCs.end(), comparator_sfc_dsc_length);
+    simtest.sim_name = testname + "_dsc_length_";
+    for( const float& scale: {0.25f,0.5f,0.75f,1.0f} ){
+        for(const float& alpha: {0.25f,0.5f,0.75f}){
+            int pxs = 1, dist=1;
+            string other = to_string(scale)+"_"+to_string(alpha)+"_"+to_string(pxs)+"_"+to_string(dist);
+            cout<<"\n[parameters: "<<other<<"]------------";
+
+            simtest.DeploymentVNF_ScoreMethod(scale,alpha,pxs,dist);
+
+            simtest.TestsResult.clear();
+            try{  Heuristic_kShortestPath_InstanceMapping(simtest);  }
+            catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+                simtest.showSimulationTestResults(simtest.TestsResult[name_kshortestpath]);
+            }
+
+//            try {  bruteForce_InstanceMapping(simtest); }
+//            catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+//                simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+//            }
+
+            if(obs == 1){  simtest.writeInFileSimulationTestResults(obs, ios::out, other);
+            }else{ simtest.writeInFileSimulationTestResults(obs, ios::app, other);
+            } obs++;
+            system(CLR);
+        }
+    }
+
+    sort(simtest.sortedSFCs.begin(), simtest.sortedSFCs.end(), comparator_sfc_dsc_rate);
+    simtest.sim_name = testname + "_dsc_rate_";
+    for( const float& scale: {0.25f,0.5f,0.75f,1.0f} ){
+        for(const float& alpha: {0.25f,0.5f,0.75f}){
+            int pxs = 1, dist=1;
+            string other = to_string(scale)+"_"+to_string(alpha)+"_"+to_string(pxs)+"_"+to_string(dist);
+            cout<<"\n[parameters: "<<other<<"]------------";
+
+            simtest.DeploymentVNF_ScoreMethod(scale,alpha,pxs,dist);
+
+            simtest.TestsResult.clear();
+            try{  Heuristic_kShortestPath_InstanceMapping(simtest);  }
+            catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+                simtest.showSimulationTestResults(simtest.TestsResult[name_kshortestpath]);
+            }
+
+//            try {  bruteForce_InstanceMapping(simtest); }
+//            catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+//                simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+//            }
+
+            if(obs == 1){  simtest.writeInFileSimulationTestResults(obs, ios::out, other);
+            }else{ simtest.writeInFileSimulationTestResults(obs, ios::app, other);
+            } obs++;
+            system(CLR);
         }
     }
     return true;
@@ -582,48 +694,6 @@ bool TestTime_IntegerComposition(){
     return true;
 }
 
-bool AutomateForEachDirectory(){
-
-    for(const string& dirname : {"NewYork", "India", "Germany", "TA2"}){ //
-
-        const string& networkFileName = "network_"+dirname+".txt";
-
-        cout<<"\n"<<"ImpactOfVariousDelays:";
-        SimulationTest_ImpactOfVariousDelays("ImpactOfVariousDelays_setid_", dirname, networkFileName);
-
-        for(const int setting_id: {0,1,2,3,4,5}){
-            const string& fileVNF = "VNF"+to_string(maxNumVNFs)+".txt";
-            pair<type_delay, type_delay> funExeTimeRange;
-            setDelayParameterSettings(setting_id, funExeTimeRange);
-            GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
-
-            cout<<"\n"<<"ImpactOfHeterogeneousDelays_setid_"<<(setting_id);
-            SimulationTest_ImpactOfHeterogeneousDelays("ImpactOfHeterogeneousDelays_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF, {55,0});
-
-            cout<<"\n"<<"ImpactOfNumberOfInstancesPerServer_setid_"<<(setting_id);
-            SimulationTest_ImpactOfNumberOfInstancesPerServer("ImpactOfNumberOfInstancesPerServer_setid_"+to_string(setting_id), dirname, networkFileName, fileVNF,{55,0});
-        }
-
-        if(dirname == "NewYork"){
-            cout<<"\n"<<"SameChainsHeterogeneousDelaysImpactOfNumberOfInstances"<<(0);
-            SimulationTest_SameChainsHeterogeneousDelaysImpactOfNumberOfInstancesPerServer(dirname);
-            for(const int set: {3,5}){
-
-                const string& fileVNF = "VNF"+to_string(maxNumVNFs)+"len.txt";
-                pair<type_delay, type_delay> funExeTimeRange;
-                setDelayParameterSettings(set, funExeTimeRange);
-                GenerateRandomVNFs(maxNumVNFs, funServiceRateRange, funExeTimeRange, dirname+"/" , fileVNF);
-                SimulationTest_ImpactOfChainLength("ImpactOfChainLength_setid_"+to_string(set), dirname, networkFileName, fileVNF, {55,1});
-                SimulationTest_FixedChainLength("ImpactOfFixedChainLength_setid_"+to_string(set), dirname, networkFileName, fileVNF, {55,1});
-            }
-        }
-
-    } //for directory listing
-
-    return true;
-}
-
-
 bool ComparisonWithExistingPPC(const string& testname, const string& dirname, const string& fileNetwork, const string& fileVNF, const pair<float, int>& parallelPairsOption = parallelPairsOpt, const string& sfc_sort_opt= "asc_length"){//SimulationTest_FixedChainLength
     Simulations simtest(testname, dirname);
     readNetwork(simtest.fullDirName,fileNetwork,simtest.PhysicalNetwork);/// reading network
@@ -632,7 +702,7 @@ bool ComparisonWithExistingPPC(const string& testname, const string& dirname, co
 
     unsigned int numOfSFCsNeeded =  setnumOfSFCsNeeded(simtest.PhysicalNetwork.numV);
 
-    int sfclen = 7;
+    int sfclen = 0;
     for(int obs=1; obs<=10; obs++){
         const string& filesfc = "SFC"+ to_string(numOfSFCsNeeded)+"_R_L.txt"; //+to_string(sfclen)
         cout<<"\n[obs:"<<obs<<": "<<filesfc<<"]------------";
@@ -648,27 +718,35 @@ bool ComparisonWithExistingPPC(const string& testname, const string& dirname, co
         simtest.calcLikelihoodOfTwoFunctions(); ///based on parallel pairs and VNFs in SFC
         simtest.DeploymentVNF_ScoreMethod(1,0.75,1,1);
 
-        simtest.TestsResult.clear();
+
         for(ServiceFunctionChain& sfc: simtest.allSFC){
             sfc.partialParallelChains = &sfc.allPartParSFC;
-        }
+        }simtest.TestsResult.clear();
         simtest.sim_name = testname + "_ppc";
-        try {  bruteForce_InstanceMapping(simtest); }
+//        try {  bruteForce_InstanceMapping(simtest); }
+//        catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+//            simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+//        }
+        try{  Heuristic_kShortestPath_InstanceMapping(simtest);  }
         catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
-            simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+            simtest.showSimulationTestResults(simtest.TestsResult[name_kshortestpath]);
         }
         if(obs == 1){ simtest.writeInFileSimulationTestResults(obs, ios::out, filesfc+ " obs:"+to_string(obs));
         }else{  simtest.writeInFileSimulationTestResults(obs, ios::app, filesfc + " obs:"+to_string(obs));
         }
 
-        simtest.TestsResult.clear();
+
         for(ServiceFunctionChain& sfc: simtest.allSFC){
             sfc.partialParallelChains = &sfc.subsetPartParSFC;
-        }
+        }simtest.TestsResult.clear();
         simtest.sim_name = testname + "_oppc";
-        try {  bruteForce_InstanceMapping(simtest); }
+//        try {  bruteForce_InstanceMapping(simtest); }
+//        catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
+//            simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+//        }
+        try{  Heuristic_kShortestPath_InstanceMapping(simtest);  }
         catch (std::exception const &e) { std::cerr << "\ncaught: " << e.what();
-            simtest.showSimulationTestResults(simtest.TestsResult[name_bruteForce]);
+            simtest.showSimulationTestResults(simtest.TestsResult[name_kshortestpath]);
         }
         if(obs == 1){ simtest.writeInFileSimulationTestResults(obs, ios::out, filesfc+ " obs:"+to_string(obs));
         }else{  simtest.writeInFileSimulationTestResults(obs, ios::app, filesfc + " obs:"+to_string(obs));
@@ -677,4 +755,5 @@ bool ComparisonWithExistingPPC(const string& testname, const string& dirname, co
     }//sfclen
     return true;
 }//SimulationTest_FixedChainLength
+
 #endif //SFC_PARALLELIZATION_TESTS_H

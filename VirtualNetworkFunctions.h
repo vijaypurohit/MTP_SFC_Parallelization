@@ -116,6 +116,7 @@ void VirtualNetworkFunctions::Algorithm_NF_Parallelism_Identification(){
     vnfPktInfo[12] = new pktFields({{SIP,   R}, {DIP,   W}, {SPORT, R}, {DPORT, W}});
  
     // iterating all possible pairs
+     unordered_map<unsigned int, unordered_map<unsigned int, unsigned int>> pairs;
     int cnt=0;
     for(int i_vnf=1; i_vnf<=n; i_vnf++){
         for(int j_vnf=1; j_vnf<=n; j_vnf++){
@@ -148,8 +149,12 @@ void VirtualNetworkFunctions::Algorithm_NF_Parallelism_Identification(){
             } // foreach
             if(canBeParallelized){
                 cnt++;
+                pairs[i_vnf][j_vnf] = 1;
                 cout<<"\n"<<cnt<<"["<<i_vnf<<":"<<j_vnf<<"] : canBeParallelized:"<<canBeParallelized<< " : "<<conflicting_actions;
-            }
+                if(pairs.count(j_vnf) and pairs[j_vnf].count(i_vnf) and pairs[j_vnf][i_vnf]==0)
+                    cout<<"  -- found.";
+            }else
+                pairs[i_vnf][j_vnf] = 0;
         }// for j
     }// for i
 }
